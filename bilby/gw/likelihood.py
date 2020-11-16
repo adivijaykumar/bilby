@@ -1455,10 +1455,10 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
         self.bin_inds = dict()
         self.initial_parameter_keys_sorted = sorted(self.initial_parameters)
         self.maximum_likelihood_parameters = initial_parameters
-        self.setup_bins()
-        logger.info('Bin setup completed. Number of bins = {}'.format(len(self.bin_freqs) - 1))
         self.set_fiducial_waveforms(self.initial_parameters)
         logger.info("Initial fiducial waveforms set up")
+        self.setup_bins()
+        logger.info('Bin setup completed. Number of bins = {}'.format(len(self.bin_freqs) - 1))
         self.compute_summary_data()
         logger.info("Summary Data Obtained")
         # self.find_maximum_likelihood_waveform(self.initial_parameters, self.parameter_bounds, iterations=1)

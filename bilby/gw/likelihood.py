@@ -1416,10 +1416,6 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
     parameter_bounds: dict, optional
         Dictionary of bounds (lists) for the initial parameters when finding
         the initial maximum likelihood (fiducial) waveform.
-    min_bin_frequencty: int, optional
-        Minimum frequency of the bin range used.
-    max_bin_frequencty: int, optional
-        Maximum frequency of the bin range used.
     chi: float, optional
         Tunable parameter which limits the perturbation of alpha when setting
         up the bin range. See https://arxiv.org/abs/1806.08792.
@@ -1436,8 +1432,7 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
 
     # Make sure that working with the individual polarizations still works...
     def __init__(self, interferometers, waveform_generator,
-                 initial_parameters={}, parameter_bounds={},
-                 min_bin_frequency=20, max_bin_frequency=1000, chi=1,
+                 initial_parameters={}, parameter_bounds={}, chi=1,
                  epsilon=.5, debug=False):
         super(RelativeBinningGravitationalWaveTransient, self).__init__(
             interferometers=interferometers,
@@ -1450,8 +1445,6 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
 
         self.initial_parameters = initial_parameters
         self.parameter_bounds = parameter_bounds
-        self.min_bin_frequency = min_bin_frequency
-        self.max_bin_frequency = max_bin_frequency
         self.chi = chi
         self.epsilon = epsilon
         self.gamma = np.array([-5 / 3, -2 / 3, 1, 5 / 3, 7 / 3])
@@ -1495,8 +1488,8 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
                 np.where(frequency_array <= interferometer.maximum_frequency))]
 
             d_alpha = self.chi * 2 * np.pi / np.abs(
-                (self.min_bin_frequency ** gamma) * np.heaviside(
-                    -gamma, 1) - (self.max_bin_frequency ** gamma) * np.heaviside(
+                (interferometer.minimum_frequency ** gamma) * np.heaviside(
+                    -gamma, 1) - (interferometer.maximum_frequency ** gamma) * np.heaviside(
                     gamma, 1))
             d_phi = np.sum(np.array([np.sign(gamma[i]) * d_alpha[i] * (
                 frequency_array_useful ** gamma[i]) for i in range(len(gamma))]), axis=0)

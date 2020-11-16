@@ -1458,7 +1458,6 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
         self.set_fiducial_waveforms(self.initial_parameters)
         logger.info("Initial fiducial waveforms set up")
         self.setup_bins()
-        logger.info('Bin setup completed. Number of bins = {}'.format(len(self.bin_freqs) - 1))
         self.compute_summary_data()
         logger.info("Summary Data Obtained")
         # self.find_maximum_likelihood_waveform(self.initial_parameters, self.parameter_bounds, iterations=1)
@@ -1496,9 +1495,8 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
 
             self.bin_inds[interferometer.name] = np.array(
                 [np.where(frequency_array >= bin_freq)[0][0] for bin_freq in self.bin_freqs[interferometer.name]])
-            logger.info("Set up bins for {} between {} Hz and {} Hz".format(interferometer.name,
-                                                                            interferometer.minimum_frequency,
-                                                                            interferometer.maximum_frequency))
+            logger.info("Set up {} bins for {} between {} Hz and {} Hz".format(
+                num_bins, interferometer.name, interferometer.minimum_frequency, interferometer.maximum_frequency))
         return
 
     def set_fiducial_waveforms(self, parameters):

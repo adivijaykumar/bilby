@@ -1501,6 +1501,9 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
 
             self.bin_inds[interferometer.name] = np.array(
                 [np.where(frequency_array >= bin_freq)[0][0] for bin_freq in self.bin_freqs[interferometer.name]])
+            logger.info("Set up bins for {} between {} Hz and {} Hz".format(interferometer.name,
+                                                                            interferometer.minimum_frequency,
+                                                                            interferometer.maximum_frequency))
         return
 
     def set_fiducial_waveforms(self, parameters):

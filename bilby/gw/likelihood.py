@@ -1535,9 +1535,9 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
         return
 
     def log_likelihood(self):
-        return self.log_likelihood_ratio_relative_binning() + self.noise_log_likelihood()
+        return self.log_likelihood_ratio() + self.noise_log_likelihood()
 
-    def log_likelihood_ratio_relative_binning(self):
+    def log_likelihood_ratio(self):
         d_inner_h = 0.
         optimal_snr_squared = 0.
         complex_matched_filter_snr = 0.

@@ -1497,6 +1497,7 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
                 [np.where(frequency_array >= bin_freq)[0][0] for bin_freq in self.bin_freqs[interferometer.name]])
             logger.info("Set up {} bins for {} between {} Hz and {} Hz".format(
                 num_bins, interferometer.name, interferometer.minimum_frequency, interferometer.maximum_frequency))
+            self.waveform_generator.waveform_arguments["frequency_bin_edges"] = self.bin_freqs[interferometer.name]
         return
 
     def set_fiducial_waveforms(self, parameters):
@@ -1646,7 +1647,6 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
     def compute_relative_ratio(self, parameter_dictionary, interferometer):
 
         self.waveform_generator.parameters = parameter_dictionary
-        self.waveform_generator.waveform_arguments["frequency_bin_edges"] = self.bin_freqs[interferometer.name]
         new_polarizations = self.waveform_generator.frequency_domain_strain(parameter_dictionary)
         h = interferometer.get_detector_response_relative_binning(
             new_polarizations, parameter_dictionary, self.bin_freqs[interferometer.name])

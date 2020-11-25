@@ -1618,7 +1618,7 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
             masked_strain = interferometer.frequency_domain_strain[mask]
             masked_h0 = self.per_detector_fiducial_waveforms[interferometer.name][mask]
             masked_psd = interferometer.power_spectral_density_array[mask]
-            a0, b0, a1, b1 = np.zeros((4, self.number_of_bins))
+            a0, b0, a1, b1 = np.zeros((4, self.number_of_bins), dtype=np.complex)
 
             for i in range(self.number_of_bins):
 

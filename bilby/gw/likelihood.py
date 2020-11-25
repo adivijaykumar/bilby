@@ -1616,35 +1616,46 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
         for interferometer in self.interferometers:
             mask = interferometer.frequency_mask
             masked_frequency_array = interferometer.frequency_array[mask]
-            maximum_bin_frequency_array = np.ones_like(masked_frequency_array)
-            start_index = 0
-            for edge in self.bin_freqs[interferometer.name][1:]:
+            masked_bin_inds = []
+            for edge in self.bin_freqs[interferometer.name]:
                 index = np.where(masked_frequency_array == edge)[0][0]
-                maximum_bin_frequency_array[start_index:index +
-                                            1] = maximum_bin_frequency_array[start_index:index + 1] * edge
-                start_index = index + 1
-            factor = masked_frequency_array - maximum_bin_frequency_array
+                masked_bin_inds.append(index)
+            masked_strain = interferometer.frequency_domain_strain[mask]
+            masked_h0 = self.per_detector_fiducial_waveforms[interferometer.name][mask]
+            masked_psd = interferometer.power_spectral_density_array[mask]
+            a0, b0, a1, b1 = np.zeros((4, self.number_of_bins), dtype=np.complex)
 
-            a0 = noise_weighted_inner_product(
-                interferometer.frequency_domain_strain[mask],
-                self.per_detector_fiducial_waveforms[interferometer.name][mask],
-                interferometer.power_spectral_density_array[mask],
-                self.waveform_generator.duration) / self.number_of_bins
-            b0 = noise_weighted_inner_product(
-                self.per_detector_fiducial_waveforms[interferometer.name][mask],
-                self.per_detector_fiducial_waveforms[interferometer.name][mask],
-                interferometer.power_spectral_density_array[mask],
-                self.waveform_generator.duration) / self.number_of_bins
-            a1 = noise_weighted_inner_product(
-                interferometer.frequency_domain_strain[mask] * factor,
-                self.per_detector_fiducial_waveforms[interferometer.name][mask],
-                interferometer.power_spectral_density_array[mask],
-                self.waveform_generator.duration) / self.number_of_bins
-            b1 = noise_weighted_inner_product(
-                self.per_detector_fiducial_waveforms[interferometer.name][mask] * factor,
-                self.per_detector_fiducial_waveforms[interferometer.name][mask],
-                interferometer.power_spectral_density_array[mask],
-                self.waveform_generator.duration) / self.number_of_bins
+            for i in range(self.number_of_bins):
+
+                central_frequency_i = 0.5 * (masked_frequency_array[i] + masked_frequency_array[i + 1])
+                masked_strain_i = masked_strain[masked_bin_inds[i]:masked_bin_inds[i + 1]]
+                masked_h0_i = masked_h0[masked_bin_inds[i]:masked_bin_inds[i + 1]]
+                masked_psd_i = masked_psd[masked_bin_inds[i]:masked_bin_inds[i + 1]]
+                masked_frequency_i = masked_frequency_array[masked_bin_inds[i]:masked_bin_inds[i + 1]]
+
+                a0[i] = noise_weighted_inner_product(
+                    masked_strain_i,
+                    masked_h0_i,
+                    masked_psd_i,
+                    self.waveform_generator.duration)
+
+                b0[i] = noise_weighted_inner_product(
+                    masked_h0_i,
+                    masked_h0_i,
+                    masked_psd_i,
+                    self.waveform_generator.duration)
+
+                a1[i] = noise_weighted_inner_product(
+                    masked_strain_i * (masked_frequency_i - central_frequency_i),
+                    masked_h0_i,
+                    masked_psd_i,
+                    self.waveform_generator.duration)
+
+                b1[i] = noise_weighted_inner_product(
+                    masked_h0_i * (masked_frequency_i - central_frequency_i),
+                    masked_h0_i,
+                    masked_psd_i,
+                    self.waveform_generator.duration)
 
             summary_data[interferometer.name] = dict(a0=a0, a1=a1, b0=b0, b1=b1)
 

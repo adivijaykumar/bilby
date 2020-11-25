@@ -1494,12 +1494,15 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
                 frequency_array_useful ** gamma[i]) for i in range(len(gamma))]), axis=0)
             d_phi_from_start = d_phi - d_phi[0]
             self.number_of_bins = int(d_phi_from_start[-1] // self.epsilon)
-            self.bin_freqs[interferometer.name] = np.array([frequency_array_useful[np.where(d_phi_from_start >= (
-                (i / self.number_of_bins) * d_phi_from_start[-1]))[0][0]] for i in range(
-                    self.number_of_bins + 1)])
+            self.bin_freqs[interferometer.name] = np.zeros(self.number_of_bins + 1)
+            self.bin_inds[interferometer.name] = np.zeros(self.number_of_bins + 1, dtype=np.int)
 
-            self.bin_inds[interferometer.name] = np.array(
-                [np.where(frequency_array >= bin_freq)[0][0] for bin_freq in self.bin_freqs[interferometer.name]])
+            for i in range(self.number_of_bins + 1):
+                bin_index = np.where(d_phi_from_start >= ((i / self.number_of_bins) * d_phi_from_start[-1]))[0][0]
+                bin_freq = frequency_array_useful[bin_index]
+                self.bin_freqs[interferometer.name][i] = bin_freq
+                self.bin_inds[interferometer.name][i] = np.where(frequency_array >= bin_freq)[0][0]
+
             logger.info("Set up {} bins for {} between {} Hz and {} Hz".format(
                 self.number_of_bins, interferometer.name, interferometer.minimum_frequency,
                 interferometer.maximum_frequency))

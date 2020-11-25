@@ -1490,7 +1490,7 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
             d_phi_from_start = d_phi - d_phi[0]
             self.number_of_bins = int(d_phi_from_start[-1] // self.epsilon)
             self.bin_freqs[interferometer.name] = np.zeros(self.number_of_bins + 1)
-            self.bin_inds[interferometer.name] = np.zeros(self.number_of_bins + 1)
+            self.bin_inds[interferometer.name] = np.zeros(self.number_of_bins + 1, dtype=np.int)
 
             for i in range(self.number_of_bins + 1):
                 bin_index = np.where(d_phi_from_start >= ((i / self.number_of_bins) * d_phi_from_start[-1]))[0][0]

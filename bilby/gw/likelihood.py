@@ -1623,31 +1623,39 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
             masked_strain = interferometer.frequency_domain_strain[mask]
             masked_h0 = self.per_detector_fiducial_waveforms[interferometer.name][mask]
             masked_psd = interferometer.power_spectral_density_array[mask]
+            a0, b0, a1, b1 = np.zeros((4, self.number_of_bins), dtype=np.complex)
 
-            a0 = np.array([noise_weighted_inner_product(
-                masked_strain[masked_bin_inds[i]:masked_bin_inds[i + 1]],
-                masked_h0[masked_bin_inds[i]:masked_bin_inds[i + 1]],
-                masked_psd[masked_bin_inds[i]:masked_bin_inds[i + 1]],
-                self.waveform_generator.duration) for i in range(self.number_of_bins)])
-            b0 = np.array([noise_weighted_inner_product(
-                masked_h0[masked_bin_inds[i]:masked_bin_inds[i + 1]],
-                masked_h0[masked_bin_inds[i]:masked_bin_inds[i + 1]],
-                masked_psd[masked_bin_inds[i]:masked_bin_inds[i + 1]],
-                self.waveform_generator.duration) for i in range(self.number_of_bins)])
-            a1 = np.array([noise_weighted_inner_product(
-                masked_strain[masked_bin_inds[i]:masked_bin_inds[i + 1]],
-                masked_h0[masked_bin_inds[i]:masked_bin_inds[i + 1]],
-                masked_psd[masked_bin_inds[i]:masked_bin_inds[i + 1]]
-                * masked_frequency_array[masked_bin_inds[i]:masked_bin_inds[i + 1]]
-                - 0.5 * (masked_frequency_array[masked_bin_inds[i]] + masked_frequency_array[masked_bin_inds[i + 1]]),
-                self.waveform_generator.duration) for i in range(self.number_of_bins)])
-            b1 = np.array([noise_weighted_inner_product(
-                masked_h0[masked_bin_inds[i]:masked_bin_inds[i + 1]],
-                masked_h0[masked_bin_inds[i]:masked_bin_inds[i + 1]],
-                masked_psd[masked_bin_inds[i]:masked_bin_inds[i + 1]]
-                * masked_frequency_array[masked_bin_inds[i]:masked_bin_inds[i + 1]]
-                - 0.5 * (masked_frequency_array[masked_bin_inds[i]] + masked_frequency_array[masked_bin_inds[i + 1]]),
-                self.waveform_generator.duration) for i in range(self.number_of_bins)])
+            for i in range(self.number_of_bins):
+
+                central_frequency_i = 0.5 * (masked_frequency_array[i] + masked_frequency_array[i + 1])
+                masked_strain_i = masked_strain[masked_bin_inds[i]:masked_bin_inds[i + 1]]
+                masked_h0_i = masked_h0[masked_bin_inds[i]:masked_bin_inds[i + 1]]
+                masked_psd_i = masked_psd[masked_bin_inds[i]:masked_bin_inds[i + 1]]
+                masked_frequency_i = masked_frequency_array[masked_bin_inds[i]:masked_bin_inds[i + 1]]
+
+                a0[i] = noise_weighted_inner_product(
+                    masked_strain_i,
+                    masked_h0_i,
+                    masked_psd_i,
+                    self.waveform_generator.duration)
+
+                b0[i] = noise_weighted_inner_product(
+                    masked_h0_i,
+                    masked_h0_i,
+                    masked_psd_i,
+                    self.waveform_generator.duration)
+
+                a1[i] = noise_weighted_inner_product(
+                    masked_strain_i * (masked_frequency_i - central_frequency_i),
+                    masked_h0_i,
+                    masked_psd_i,
+                    self.waveform_generator.duration)
+
+                b1[i] = noise_weighted_inner_product(
+                    masked_h0_i * (masked_frequency_i - central_frequency_i),
+                    masked_h0_i,
+                    masked_psd_i,
+                    self.waveform_generator.duration)
 
             summary_data[interferometer.name] = dict(a0=a0, a1=a1, b0=b0, b1=b1)
 

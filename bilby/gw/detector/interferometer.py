@@ -356,6 +356,11 @@ class Interferometer(object):
             signal[mode] = waveform_polarizations[mode] * det_response
         signal_ifo = sum(signal.values())
 
+        masked_frequency_array = self.strain_data.frequency_array[self.strain_data.frequency_mask]
+        bin_frequency_mask = np.where(np.in1d(bin_frequencies, masked_frequency_array), True, False)
+
+        signal_ifo *= bin_frequency_mask
+
         time_shift = self.time_delay_from_geocenter(
             parameters['ra'], parameters['dec'], parameters['geocent_time'])
 
@@ -364,14 +369,11 @@ class Interferometer(object):
         dt_geocent = parameters['geocent_time'] - self.strain_data.start_time
         dt = dt_geocent + time_shift
 
-        # Assume that all our bin frequencies are used. Therefore we don't
-        # use a frequency mask when time-shiting our data or applying the
-        # calibration factor.
-        signal_ifo = signal_ifo * \
-            np.exp(-1j * 2 * np.pi * bin_frequencies * dt)
+        signal_ifo[bin_frequency_mask] = signal_ifo[bin_frequency_mask] * \
+            np.exp(-1j * 2 * np.pi * dt * bin_frequencies[bin_frequency_mask])
 
-        signal_ifo *= self.calibration_model.get_calibration_factor(
-            bin_frequencies, prefix='recalib_{}_'.format(self.name),
+        signal_ifo[bin_frequency_mask] *= self.calibration_model.get_calibration_factor(
+            bin_frequencies[bin_frequency_mask], prefix='recalib_{}_'.format(self.name),
             **parameters)
 
         return signal_ifo

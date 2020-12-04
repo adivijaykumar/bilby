@@ -1625,15 +1625,16 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
 
             for i in range(self.number_of_bins):
 
-                central_frequency_i = 0.5 * (masked_frequency_array[i] + masked_frequency_array[i + 1])
+                central_frequency_i = 0.5 * \
+                    (masked_frequency_array[masked_bin_inds[i]] + masked_frequency_array[masked_bin_inds[i + 1]])
                 masked_strain_i = masked_strain[masked_bin_inds[i]:masked_bin_inds[i + 1]]
                 masked_h0_i = masked_h0[masked_bin_inds[i]:masked_bin_inds[i + 1]]
                 masked_psd_i = masked_psd[masked_bin_inds[i]:masked_bin_inds[i + 1]]
                 masked_frequency_i = masked_frequency_array[masked_bin_inds[i]:masked_bin_inds[i + 1]]
 
                 a0[i] = noise_weighted_inner_product(
-                    masked_strain_i,
                     masked_h0_i,
+                    masked_strain_i,
                     masked_psd_i,
                     self.waveform_generator.duration)
 
@@ -1644,14 +1645,14 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
                     self.waveform_generator.duration)
 
                 a1[i] = noise_weighted_inner_product(
-                    masked_strain_i * (masked_frequency_i - central_frequency_i),
                     masked_h0_i,
+                    masked_strain_i * (masked_frequency_i - central_frequency_i),
                     masked_psd_i,
                     self.waveform_generator.duration)
 
                 b1[i] = noise_weighted_inner_product(
-                    masked_h0_i * (masked_frequency_i - central_frequency_i),
                     masked_h0_i,
+                    masked_h0_i * (masked_frequency_i - central_frequency_i),
                     masked_psd_i,
                     self.waveform_generator.duration)
 

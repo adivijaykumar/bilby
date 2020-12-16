@@ -1657,8 +1657,8 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
 
                 b1[i] = noise_weighted_inner_product(
                     masked_h0_i,
-                    masked_h0_i * (masked_frequency_i - central_frequency_i),
-                    masked_psd_i,
+                    masked_h0_i,
+                    masked_psd_i / (masked_frequency_i - central_frequency_i),
                     self.waveform_generator.duration)
 
             summary_data[interferometer.name] = dict(a0=a0, a1=a1, b0=b0, b1=b1)

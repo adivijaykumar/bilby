@@ -1540,6 +1540,7 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
         d_inner_h = 0.
         optimal_snr_squared = 0.
         complex_matched_filter_snr = 0.
+        self.parameters.update(self.get_sky_frame_parameters())
 
         for interferometer in self.interferometers:
             # Relative waveform to compute for each detector.
@@ -1569,6 +1570,7 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
                 atol=1e-10, maxiter=10)  # change back to 500, no input
             print("likelihood: %s" % log_likelihood)
 
+            self.maximum_likelihood_parameters.update(self.get_sky_frame_parameters())
             self.set_fiducial_waveforms(self.maximum_likelihood_parameters)
             self.compute_summary_data()
 

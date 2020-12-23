@@ -4,6 +4,7 @@ import gc
 import os
 import json
 import copy
+import sys
 
 import numpy as np
 import scipy.integrate as integrate
@@ -1432,6 +1433,7 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
     def __init__(self, interferometers, waveform_generator,
                  initial_parameters={}, parameter_bounds={}, chi=1,
                  epsilon=.5):
+
         super(RelativeBinningGravitationalWaveTransient, self).__init__(
             interferometers=interferometers,
             waveform_generator=waveform_generator, priors=None,
@@ -1446,8 +1448,6 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
         self.chi = chi
         self.epsilon = epsilon
         self.gamma = np.array([-5 / 3, -2 / 3, 1, 5 / 3, 7 / 3])
-        self.waveform_generator = waveform_generator
-
         self.fiducial_waveform_obtained = False
         self.check_if_bins_are_setup = False
         self.fiducial_polarizations = None

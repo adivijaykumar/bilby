@@ -1,8 +1,7 @@
-from __future__ import division
 import sys
 import multiprocessing
 
-from tqdm import tqdm
+from tqdm.auto import tqdm
 import numpy as np
 from pandas import DataFrame
 
@@ -815,8 +814,8 @@ def _generate_all_cbc_parameters(sample, defaults, base_conversion,
             logger.info(
                 "Generation of {} parameters failed with message {}".format(
                     key, e))
-    if likelihood is not None:
-        compute_snrs(output_sample, likelihood)
+    # if likelihood is not None:
+    #     compute_snrs(output_sample, likelihood)
     return output_sample
 
 

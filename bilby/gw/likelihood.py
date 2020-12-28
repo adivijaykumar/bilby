@@ -1430,10 +1430,10 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
         some model parameters.
     """
 
-    # Make sure that working with the individual polarizations still works...
     def __init__(self, interferometers, waveform_generator,
                  initial_parameters={}, parameter_bounds={}, chi=1,
-                 epsilon=.5, debug=False):
+                 epsilon=.5):
+
         super(RelativeBinningGravitationalWaveTransient, self).__init__(
             interferometers=interferometers,
             waveform_generator=waveform_generator, priors=None,
@@ -1448,10 +1448,6 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
         self.chi = chi
         self.epsilon = epsilon
         self.gamma = np.array([-5 / 3, -2 / 3, 1, 5 / 3, 7 / 3])
-        self.debug = debug
-        self.waveform_generator = waveform_generator
-
-        # We start without any bins or fidicual waveforms.
         self.fiducial_waveform_obtained = False
         self.check_if_bins_are_setup = False
         self.fiducial_polarizations = None
@@ -1465,14 +1461,6 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
         self.setup_bins()
         self.compute_summary_data()
         logger.info("Summary Data Obtained")
-        # self.find_maximum_likelihood_waveform(self.initial_parameters, self.parameter_bounds, iterations=1)
-        # maxl_logl = self.log_likelihood_ratio_approx(None, parameter_dictionary=self.maximum_likelihood_parameters)
-        # maxl_logl = self.log_likelihood_ratio_approx()
-        # print(maxl_logl)
-
-        if debug:
-            # print('maxl value = %s' % maxl_logl)
-            print('actual maxl value = %s' % self.log_likelihood_ratio_full(self.maximum_likelihood_parameters))
 
     def __repr__(self):
         return self.__class__.__name__ + '(interferometers={},\n\twaveform_generator={},\n\initial_parameters={},' \
@@ -1554,7 +1542,6 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
             complex_matched_filter_snr += per_detector_snr.complex_matched_filter_snr
 
         log_l = np.real(d_inner_h) - optimal_snr_squared / 2
-        # print('logl in inner calculation = ', log_l)
         return float(log_l.real)
 
     def find_maximum_likelihood_waveform(self, initial_parameter_guess,
@@ -1674,17 +1661,6 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
         h0 = self.per_detector_fiducial_waveforms[interferometer.name][self.bin_inds[interferometer.name]]
         waveform_ratio = h / h0
 
-        if (self.debug):
-            print('new polarizations:  %s' % new_polarizations)
-
-        # Divide the individual waveform polarizations.
-        # Only evaluate at frequency bin edges.
-
-        if (self.debug):
-            print('ratios = %s' % waveform_ratio)
-            # Exit here so our debug statements don't loop forever..
-            sys.exit()
-
         r0 = (waveform_ratio[1:] + waveform_ratio[:-1]) / 2
         r1 = (waveform_ratio[1:] - waveform_ratio[:-1]) / (
             self.bin_freqs[interferometer.name][1:] - self.bin_freqs[interferometer.name][:-1])
@@ -1702,25 +1678,6 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
         optimal_snr_squared = h_inner_h
         complex_matched_filter_snr = d_inner_h / (optimal_snr_squared ** 0.5)
 
-        if (self.debug):
-            print('d_inner_h = %s' % d_inner_h)
-            print('optimal_snr_squared = %s' % optimal_snr_squared)
-        return self._CalculatedSNRs(
-            d_inner_h=d_inner_h, optimal_snr_squared=optimal_snr_squared,
-            complex_matched_filter_snr=complex_matched_filter_snr,
-            d_inner_h_squared_tc_array=None)
-
-    def calculate_snrs_full(self, waveform_polarizations, interferometer,
-                            parameters):
-        # print(len(interferometer.strain_data.frequency_array))
-        signal = interferometer.get_detector_response(
-            waveform_polarizations, parameters,
-            interferometer.strain_data.frequency_array)
-        d_inner_h = interferometer.inner_product(signal=signal)
-        optimal_snr_squared = interferometer.optimal_snr_squared(signal=signal)
-        complex_matched_filter_snr = d_inner_h / (optimal_snr_squared**0.5)
-        # print('d_inner_h = %s' % d_inner_h)
-        # print('optimal_snr_squared = %s' % optimal_snr_squared)
         return self._CalculatedSNRs(
             d_inner_h=d_inner_h, optimal_snr_squared=optimal_snr_squared,
             complex_matched_filter_snr=complex_matched_filter_snr,

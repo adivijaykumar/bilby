@@ -1528,13 +1528,12 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
         d_inner_h = 0.
         optimal_snr_squared = 0.
         complex_matched_filter_snr = 0.
+        self.parameters.update(self.get_sky_frame_parameters())
 
         for interferometer in self.interferometers:
-            # Relative waveform to compute for each detector.
-            r0, r1 = self.compute_relative_ratio(self.parameters,
-                                                 interferometer)
-            per_detector_snr = self.calculate_snrs_from_summary_data(
-                self.summary_data[interferometer.name], r0, r1)
+            waveform_ratio = self.compute_relative_ratio(self.parameters,
+                                                         interferometer)
+            per_detector_snr = self.calculate_snrs(waveform_ratio, interferometer)
 
             d_inner_h += per_detector_snr.d_inner_h
             optimal_snr_squared += np.real(
@@ -1556,6 +1555,7 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
                 atol=1e-10, maxiter=10)  # change back to 500, no input
             print("likelihood: %s" % log_likelihood)
 
+            self.maximum_likelihood_parameters.update(self.get_sky_frame_parameters())
             self.set_fiducial_waveforms(self.maximum_likelihood_parameters)
             self.compute_summary_data()
 
@@ -1664,13 +1664,17 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
         r0 = (waveform_ratio[1:] + waveform_ratio[:-1]) / 2
         r1 = (waveform_ratio[1:] - waveform_ratio[:-1]) / (
             self.bin_freqs[interferometer.name][1:] - self.bin_freqs[interferometer.name][:-1])
-        return r0, r1
 
-    def calculate_snrs_from_summary_data(self, summary_data_per_interferometer, r0, r1):
+        return [r0, r1]
+
+    def calculate_snrs(self, waveform_ratio, interferometer):
+        summary_data_per_interferometer = self.summary_data[interferometer.name]
         a0 = summary_data_per_interferometer["a0"]
         a1 = summary_data_per_interferometer["a1"]
         b0 = summary_data_per_interferometer["b0"]
         b1 = summary_data_per_interferometer["b1"]
+
+        r0, r1 = waveform_ratio
 
         d_inner_h = np.sum(a0 * np.conjugate(r0) + a1 * np.conjugate(r1))
         h_inner_h = np.sum(b0 * np.abs(r0) ** 2 + 2 * b1 * np.real(

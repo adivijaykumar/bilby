@@ -4,7 +4,6 @@ import gc
 import os
 import json
 import copy
-import sys
 
 import numpy as np
 import scipy.integrate as integrate

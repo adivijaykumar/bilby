@@ -1682,27 +1682,6 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
             complex_matched_filter_snr=complex_matched_filter_snr,
             d_inner_h_squared_tc_array=None)
 
-    def log_likelihood_ratio_full(self, parameter_dictionary):
-        waveform_polarizations = self.waveform_generator.frequency_domain_strain(
-            parameters=parameter_dictionary)
-
-        d_inner_h = 0.
-        optimal_snr_squared = 0.
-        complex_matched_filter_snr = 0.
-
-        for interferometer in self.interferometers:
-            per_detector_snr = self.calculate_snrs_full(
-                waveform_polarizations=waveform_polarizations,
-                interferometer=interferometer, parameters=parameter_dictionary)
-
-            d_inner_h += per_detector_snr.d_inner_h
-            optimal_snr_squared += np.real(
-                per_detector_snr.optimal_snr_squared)
-            complex_matched_filter_snr += per_detector_snr.complex_matched_filter_snr
-
-        log_l = np.real(d_inner_h) - optimal_snr_squared / 2
-        return float(log_l.real)
-
 
 class BilbyROQParamsRangeError(Exception):
     pass

@@ -1396,6 +1396,10 @@ def get_binary_black_hole_likelihood(interferometers):
     return GravitationalWaveTransient(interferometers, waveform_generator)
 
 
+class BilbyROQParamsRangeError(Exception):
+    pass
+
+
 class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
     """A gravitational-wave transient likelihood object which uses the relative
     binning procedure to calculate a fast likelihood. See IAS paper:
@@ -1685,7 +1689,3 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
             d_inner_h=d_inner_h, optimal_snr_squared=optimal_snr_squared,
             complex_matched_filter_snr=complex_matched_filter_snr,
             d_inner_h_squared_tc_array=None)
-
-
-class BilbyROQParamsRangeError(Exception):
-    pass

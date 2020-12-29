@@ -1429,15 +1429,19 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
     """
 
     def __init__(self, interferometers, waveform_generator,
-                 initial_parameters={}, parameter_bounds={}, chi=1,
-                 epsilon=.5):
+                 initial_parameters={}, parameter_bounds={},
+                 chi=1, epsilon=.5, priors=None, 
+                 distance_marginalization=False, 
+                 phase_marginalization=False, 
+                 time_marginalization=False):
 
         super(RelativeBinningGravitationalWaveTransient, self).__init__(
             interferometers=interferometers,
-            waveform_generator=waveform_generator, priors=None,
-            distance_marginalization=False,
-            phase_marginalization=False,
-            time_marginalization=False,
+            waveform_generator=waveform_generator, 
+            priors=priors,
+            distance_marginalization=distance_marginalization,
+            phase_marginalization=phase_marginalization,
+            time_marginalization=time_marginalization,
             distance_marginalization_lookup_table=False,
             jitter_time=False)
 
@@ -1523,10 +1527,17 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
         return self.log_likelihood_ratio() + self.noise_log_likelihood()
 
     def log_likelihood_ratio(self):
+        self.parameters.update(self.get_sky_frame_parameters())
+
         d_inner_h = 0.
         optimal_snr_squared = 0.
         complex_matched_filter_snr = 0.
-        self.parameters.update(self.get_sky_frame_parameters())
+        if self.time_marginalization:
+            if self.jitter_time:
+                self.parameters['geocent_time'] += self.parameters['time_jitter']
+            d_inner_h_tc_array = np.zeros(
+                self.interferometers.frequency_array[0:-1].shape,
+                dtype=np.complex128)
 
         for interferometer in self.interferometers:
             waveform_ratio = self.compute_relative_ratio(self.parameters,
@@ -1538,7 +1549,27 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
                 per_detector_snr.optimal_snr_squared)
             complex_matched_filter_snr += per_detector_snr.complex_matched_filter_snr
 
-        log_l = np.real(d_inner_h) - optimal_snr_squared / 2
+            if self.time_marginalization:
+                d_inner_h_tc_array += per_detector_snr.d_inner_h_squared_tc_array
+
+        if self.time_marginalization:
+            log_l = self.time_marginalized_likelihood(
+                d_inner_h_tc_array=d_inner_h_tc_array,
+                h_inner_h=optimal_snr_squared)
+            if self.jitter_time:
+                self.parameters['geocent_time'] -= self.parameters['time_jitter']
+
+        elif self.distance_marginalization:
+            log_l = self.distance_marginalized_likelihood(
+                d_inner_h=d_inner_h, h_inner_h=optimal_snr_squared)
+
+        elif self.phase_marginalization:
+            log_l = self.phase_marginalized_likelihood(
+                d_inner_h=d_inner_h, h_inner_h=optimal_snr_squared)
+
+        else:
+            log_l = np.real(d_inner_h) - optimal_snr_squared / 2
+
         return float(log_l.real)
 
     def find_maximum_likelihood_waveform(self, initial_parameter_guess,
@@ -1673,13 +1704,24 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
         b1 = summary_data_per_interferometer["b1"]
 
         r0, r1 = waveform_ratio
-
+  
         d_inner_h = np.sum(a0 * np.conjugate(r0) + a1 * np.conjugate(r1))
         h_inner_h = np.sum(b0 * np.abs(r0) ** 2 + 2 * b1 * np.real(
             r0 * np.conjugate(r1)))
         optimal_snr_squared = h_inner_h
         complex_matched_filter_snr = d_inner_h / (optimal_snr_squared ** 0.5)
 
+        #we need to change this
+        if self.time_marginalization:
+            d_inner_h_squared_tc_array =\
+                4 / self.waveform_generator.duration * np.fft.fft(
+                    signal[0:-1] *
+                    interferometer.frequency_domain_strain.conjugate()[0:-1] /
+                    interferometer.power_spectral_density_array[0:-1])
+        else:
+            d_inner_h_squared_tc_array = None
+
+        #for time marginalization to actually work we need to pass d_inner_h_squared_tc_array
         return self._CalculatedSNRs(
             d_inner_h=d_inner_h, optimal_snr_squared=optimal_snr_squared,
             complex_matched_filter_snr=complex_matched_filter_snr,

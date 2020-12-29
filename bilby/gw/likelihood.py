@@ -1433,7 +1433,8 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
                  chi=1, epsilon=.5, priors=None, 
                  distance_marginalization=False, 
                  phase_marginalization=False, 
-                 time_marginalization=False):
+                 time_marginalization=False,
+                 jitter_time=False):
 
         super(RelativeBinningGravitationalWaveTransient, self).__init__(
             interferometers=interferometers,
@@ -1443,7 +1444,7 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
             phase_marginalization=phase_marginalization,
             time_marginalization=time_marginalization,
             distance_marginalization_lookup_table=False,
-            jitter_time=False)
+            jitter_time=jitter_time)
 
         self.initial_parameters = initial_parameters
         self.parameter_bounds = parameter_bounds
@@ -1631,6 +1632,9 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
 
     def compute_summary_data(self):
         summary_data = dict()
+        times = self._times
+        num_samples = times.shape[0]
+        k = (times - times[0])/self._delta_tc
 
         for interferometer in self.interferometers:
             mask = interferometer.frequency_mask
@@ -1643,6 +1647,7 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
             masked_h0 = self.per_detector_fiducial_waveforms[interferometer.name][mask]
             masked_psd = interferometer.power_spectral_density_array[mask]
             a0, b0, a1, b1 = np.zeros((4, self.number_of_bins), dtype=np.complex)
+            a0_tm, a1_tm = np.zeros((2, num_samples, self.number_of_bins), dtype=np.complex)
 
             for i in range(self.number_of_bins):
 
@@ -1676,8 +1681,25 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
                     masked_h0_i * (masked_frequency_i - central_frequency_i),
                     masked_psd_i,
                     self.waveform_generator.duration)
+                
+                if self.time_marginalization:
+                    k_i = k[masked_bin_inds[i]:masked_bin_inds[i + 1]]
 
-            summary_data[interferometer.name] = dict(a0=a0, a1=a1, b0=b0, b1=b1)
+                    for n in range(1):
+                        exp_factor = np.exp(-2j*np.pi*n*k_i/num_samples)
+                        a0_tm[n,i] = noise_weighted_inner_product(
+                            masked_strain_i,
+                            masked_h0_i * exp_factor,
+                            masked_psd_i,
+                            self.waveform_generator.duration)
+                        
+                        a1_tm[n,i] = noise_weighted_inner_product(
+                            masked_strain_i,
+                            masked_h0_i * exp_factor * (masked_frequency_i - central_frequency_i),
+                            masked_psd_i,
+                            self.waveform_generator.duration)
+
+            summary_data[interferometer.name] = dict(a0=a0, a1=a1, b0=b0, b1=b1, a0_tm = a0_tm, a1_tm = a1_tm)
 
         self.summary_data = summary_data
 
@@ -1702,6 +1724,8 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
         a1 = summary_data_per_interferometer["a1"]
         b0 = summary_data_per_interferometer["b0"]
         b1 = summary_data_per_interferometer["b1"]
+        a0_tm = summary_data_per_interferometer["a0_tm"]
+        a1_tm = summary_data_per_interferometer["a1_tm"]
 
         r0, r1 = waveform_ratio
   
@@ -1713,16 +1737,12 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
 
         #we need to change this
         if self.time_marginalization:
-            d_inner_h_squared_tc_array =\
-                4 / self.waveform_generator.duration * np.fft.fft(
-                    signal[0:-1] *
-                    interferometer.frequency_domain_strain.conjugate()[0:-1] /
-                    interferometer.power_spectral_density_array[0:-1])
+            d_inner_h_squared_tc_array = 4 / self.waveform_generator.duration \
+                            * np.sum(r0 * a0_tm + r1 * a1_tm)
         else:
             d_inner_h_squared_tc_array = None
 
-        #for time marginalization to actually work we need to pass d_inner_h_squared_tc_array
         return self._CalculatedSNRs(
             d_inner_h=d_inner_h, optimal_snr_squared=optimal_snr_squared,
             complex_matched_filter_snr=complex_matched_filter_snr,
-            d_inner_h_squared_tc_array=None)
+            d_inner_h_squared_tc_array=d_inner_h_squared_tc_array)

@@ -1632,9 +1632,6 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
 
     def compute_summary_data(self):
         summary_data = dict()
-        times = self._times
-        num_samples = times.shape[0]
-        k = (times - times[0]) / self._delta_tc
 
         for interferometer in self.interferometers:
             mask = interferometer.frequency_mask
@@ -1647,7 +1644,6 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
             masked_h0 = self.per_detector_fiducial_waveforms[interferometer.name][mask]
             masked_psd = interferometer.power_spectral_density_array[mask]
             a0, b0, a1, b1 = np.zeros((4, self.number_of_bins), dtype=np.complex)
-            a0_tm, a1_tm = np.zeros((2, num_samples, self.number_of_bins), dtype=np.complex)
 
             for i in range(self.number_of_bins):
 
@@ -1682,24 +1678,7 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
                     masked_psd_i,
                     self.waveform_generator.duration)
 
-                if self.time_marginalization:
-                    k_i = k[masked_bin_inds[i]:masked_bin_inds[i + 1]]
-
-                    for n in range(num_samples):
-                        exp_factor = np.exp(-2j * np.pi * n * k_i / num_samples)
-                        a0_tm[n, i] = noise_weighted_inner_product(
-                            masked_strain_i,
-                            masked_h0_i * exp_factor,
-                            masked_psd_i,
-                            self.waveform_generator.duration)
-
-                        a1_tm[n, i] = noise_weighted_inner_product(
-                            masked_strain_i,
-                            masked_h0_i * exp_factor * (masked_frequency_i - central_frequency_i),
-                            masked_psd_i,
-                            self.waveform_generator.duration)
-
-            summary_data[interferometer.name] = dict(a0=a0, a1=a1, b0=b0, b1=b1, a0_tm=a0_tm, a1_tm=a1_tm)
+            summary_data[interferometer.name] = dict(a0=a0, a1=a1, b0=b0, b1=b1)
 
         self.summary_data = summary_data
 
@@ -1727,8 +1706,6 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
         a1 = summary_data_per_interferometer["a1"]
         b0 = summary_data_per_interferometer["b0"]
         b1 = summary_data_per_interferometer["b1"]
-        a0_tm = summary_data_per_interferometer["a0_tm"]
-        a1_tm = summary_data_per_interferometer["a1_tm"]
 
         r0, r1 = waveform_ratio_per_detector
 
@@ -1738,10 +1715,24 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
         optimal_snr_squared = h_inner_h
         complex_matched_filter_snr = d_inner_h / (optimal_snr_squared ** 0.5)
 
-        # we need to change this
         if self.time_marginalization:
-            d_inner_h_squared_tc_array = 4 / self.waveform_generator.duration \
-                * np.sum(r0 * a0_tm + r1 * a1_tm)
+            f = interferometer.frequency_array
+            duplicated_r0, duplicated_r1, duplicated_fm = np.zeros((3, f.shape[0]))
+
+            for i in range(self.number_of_bins):
+                ind = self.bin_inds[interferometer.name]
+                fm = 0.5 * (self.bin_freqs[interferometer.name][1:] + self.bin_freqs[interferometer.name][:-1])
+                duplicated_fm[ind[i]:ind[i + 1]] = fm[i]
+                duplicated_r0[ind[i]:ind[i + 1]] = r0[i]
+                duplicated_r1[ind[i]:ind[i + 1]] = r1[i]
+
+            duplicated_r = duplicated_r0 + duplicated_r1 * (f - duplicated_fm)
+
+            d_inner_h_squared_tc_array = 4 / self.waveform_generator.duration * np.fft.fft(
+                self.per_detector_fiducial_waveforms[interferometer.name][0:-1] *
+                interferometer.frequency_domain_strain.conjugate()[0:-1] *
+                duplicated_r[0:-1] / interferometer.power_spectral_density_array[0:-1])
+
         else:
             d_inner_h_squared_tc_array = None
 

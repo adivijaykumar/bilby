@@ -1714,7 +1714,7 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
 
         if self.time_marginalization:
             f = interferometer.frequency_array
-            duplicated_r0, duplicated_r1, duplicated_fm = np.zeros((3, f.shape[0]))
+            duplicated_r0, duplicated_r1, duplicated_fm = np.zeros((3, f.shape[0]), dtype=np.complex)
 
             for i in range(self.number_of_bins):
                 ind = self.bin_inds[interferometer.name]

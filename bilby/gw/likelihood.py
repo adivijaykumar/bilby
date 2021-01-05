@@ -1536,7 +1536,7 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
         for interferometer in self.interferometers:
             waveform_ratio = self.compute_relative_ratio(self.parameters,
                                                          interferometer)
-            per_detector_snr = self.calculate_snrs(waveform_ratio, interferometer)
+            per_detector_snr = self.calculate_snrs_relative_binning(waveform_ratio, interferometer)
 
             d_inner_h += per_detector_snr.d_inner_h
             optimal_snr_squared += np.real(
@@ -1670,7 +1670,7 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
 
         return [r0, r1]
 
-    def calculate_snrs(self, waveform_ratio, interferometer):
+    def calculate_snrs_relative_binning(self, waveform_ratio, interferometer):
         summary_data_per_interferometer = self.summary_data[interferometer.name]
         a0 = summary_data_per_interferometer["a0"]
         a1 = summary_data_per_interferometer["a1"]

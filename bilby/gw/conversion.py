@@ -1131,7 +1131,7 @@ def compute_snrs(sample, likelihood):
             for ifo in likelihood.interferometers:
                 if likelihood.__class__.__name__ == "RelativeBinningGravitationalWaveTransient":
                     waveform_ratio = likelihood.compute_relative_ratio(likelihood.parameters, ifo)
-                    per_detector_snr = likelihood.calculate_snrs(waveform_ratio, ifo)
+                    per_detector_snr = likelihood.calculate_snrs_relative_binning(waveform_ratio, ifo)
                 else:
                     per_detector_snr = likelihood.calculate_snrs(
                         signal_polarizations, ifo)
@@ -1155,7 +1155,7 @@ def compute_snrs(sample, likelihood):
                 for ifo in likelihood.interferometers:
                     if likelihood.__class__.__name__ == "RelativeBinningGravitationalWaveTransient":
                         waveform_ratio = likelihood.compute_relative_ratio(dict(sample.iloc[ii]), ifo)
-                        per_detector_snr = likelihood.calculate_snrs(waveform_ratio, ifo)
+                        per_detector_snr = likelihood.calculate_snrs_relative_binning(waveform_ratio, ifo)
                     else:
                         per_detector_snr = likelihood.calculate_snrs(
                             signal_polarizations, ifo)

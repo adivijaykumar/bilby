@@ -33,6 +33,7 @@ John Veitch
 Katerina Chatziioannou
 Kaylee de Soto
 Khun Sang Phukon
+Kruthi Krishna
 Kshipraa Athar
 Liting Xiao
 Maite Mateu-Lucena

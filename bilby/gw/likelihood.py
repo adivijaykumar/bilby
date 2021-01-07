@@ -8,6 +8,7 @@ import copy
 import numpy as np
 import scipy.integrate as integrate
 from scipy.interpolate import interp1d
+from scipy.optimize import differential_evolution
 
 try:
     from scipy.special import logsumexp
@@ -979,6 +980,7 @@ class ROQGravitationalWaveTransient(GravitationalWaveTransient):
         - e.g., "H1": sample in the time of arrival at H1
 
     """
+
     def __init__(
         self, interferometers, waveform_generator, priors,
         weights=None, linear_matrix=None, quadratic_matrix=None,
@@ -1396,3 +1398,294 @@ def get_binary_black_hole_likelihood(interferometers):
 
 class BilbyROQParamsRangeError(Exception):
     pass
+
+
+class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
+    """A gravitational-wave transient likelihood object which uses the relative
+    binning procedure to calculate a fast likelihood. See IAS paper:
+
+
+    Parameters
+    ----------
+    interferometers: list, bilby.gw.detector.InterferometerList
+        A list of `bilby.detector.Interferometer` instances - contains the
+        detector data and power spectral densities
+    waveform_generator: `bilby.waveform_generator.WaveformGenerator`
+        An object which computes the frequency-domain strain of the signal,
+        given some set of parameters
+    initial_parameters: dict, optional
+        A starting guess for initial parameters of the event for finding the
+        maximum likelihood (fiducial) waveform.
+    parameter_bounds: dict, optional
+        Dictionary of bounds (lists) for the initial parameters when finding
+        the initial maximum likelihood (fiducial) waveform.
+    chi: float, optional
+        Tunable parameter which limits the perturbation of alpha when setting
+        up the bin range. See https://arxiv.org/abs/1806.08792.
+    epsilon: float, optional
+        Tunable parameter which limits the differential phase change in each
+        bin when setting up the bin range. See https://arxiv.org/abs/1806.08792.
+
+    Returns
+    -------
+    Likelihood: `bilby.core.likelihood.Likelihood`
+        A likelihood object, able to compute the likelihood of the data given
+        some model parameters.
+    """
+
+    def __init__(self, interferometers, waveform_generator,
+                 initial_parameters={}, parameter_bounds={}, chi=1,
+                 epsilon=.5):
+
+        super(RelativeBinningGravitationalWaveTransient, self).__init__(
+            interferometers=interferometers,
+            waveform_generator=waveform_generator, priors=None,
+            distance_marginalization=False,
+            phase_marginalization=False,
+            time_marginalization=False,
+            distance_marginalization_lookup_table=False,
+            jitter_time=False)
+
+        self.initial_parameters = initial_parameters
+        self.parameter_bounds = parameter_bounds
+        self.chi = chi
+        self.epsilon = epsilon
+        self.gamma = np.array([-5 / 3, -2 / 3, 1, 5 / 3, 7 / 3])
+        self.fiducial_waveform_obtained = False
+        self.check_if_bins_are_setup = False
+        self.fiducial_polarizations = None
+        self.per_detector_fiducial_waveforms = {}
+        self.bin_freqs = dict()
+        self.bin_inds = dict()
+        self.initial_parameter_keys_sorted = sorted(self.initial_parameters)
+        self.maximum_likelihood_parameters = initial_parameters
+        self.set_fiducial_waveforms(self.initial_parameters)
+        logger.info("Initial fiducial waveforms set up")
+        self.setup_bins()
+        self.compute_summary_data()
+        logger.info("Summary Data Obtained")
+
+    def __repr__(self):
+        return self.__class__.__name__ + '(interferometers={},\n\twaveform_generator={},\n\initial_parameters={},' \
+            .format(self.interferometers, self.waveform_generator, self.initial_parameters)
+
+    def setup_bins(self):
+        frequency_array = self.waveform_generator.frequency_array
+        gamma = self.gamma
+        for interferometer in self.interferometers:
+            frequency_array_useful = frequency_array[np.intersect1d(
+                np.where(frequency_array >= interferometer.minimum_frequency),
+                np.where(frequency_array <= interferometer.maximum_frequency))]
+
+            d_alpha = self.chi * 2 * np.pi / np.abs(
+                (interferometer.minimum_frequency ** gamma) * np.heaviside(
+                    -gamma, 1) - (interferometer.maximum_frequency ** gamma) * np.heaviside(
+                    gamma, 1))
+            d_phi = np.sum(np.array([np.sign(gamma[i]) * d_alpha[i] * (
+                frequency_array_useful ** gamma[i]) for i in range(len(gamma))]), axis=0)
+            d_phi_from_start = d_phi - d_phi[0]
+            self.number_of_bins = int(d_phi_from_start[-1] // self.epsilon)
+            self.bin_freqs[interferometer.name] = np.zeros(self.number_of_bins + 1)
+            self.bin_inds[interferometer.name] = np.zeros(self.number_of_bins + 1, dtype=np.int)
+
+            for i in range(self.number_of_bins + 1):
+                bin_index = np.where(d_phi_from_start >= ((i / self.number_of_bins) * d_phi_from_start[-1]))[0][0]
+                bin_freq = frequency_array_useful[bin_index]
+                self.bin_freqs[interferometer.name][i] = bin_freq
+                self.bin_inds[interferometer.name][i] = np.where(frequency_array >= bin_freq)[0][0]
+
+            logger.info("Set up {} bins for {} between {} Hz and {} Hz".format(
+                self.number_of_bins, interferometer.name, interferometer.minimum_frequency,
+                interferometer.maximum_frequency))
+            self.waveform_generator.waveform_arguments["frequency_bin_edges"] = self.bin_freqs[interferometer.name]
+        return
+
+    def set_fiducial_waveforms(self, parameters):
+        self.waveform_generator.waveform_arguments["fiducial"] = True
+        self.fiducial_polarizations = self.waveform_generator.frequency_domain_strain(
+            parameters)
+
+        maximum_nonzero_index = np.where(self.fiducial_polarizations["plus"] != 0j)[0][-1]
+        logger.info("Maximum Nonzero Index is {}".format(maximum_nonzero_index))
+        maximum_nonzero_frequency = self.waveform_generator.frequency_array[maximum_nonzero_index]
+        logger.info("Maximum Nonzero Frequency is {}".format(maximum_nonzero_frequency))
+
+        if self.fiducial_polarizations is None:
+            return np.nan_to_num(-np.inf)
+
+        for interferometer in self.interferometers:
+            logger.info("Maximum Frequency is {}".format(interferometer.maximum_frequency))
+            if interferometer.maximum_frequency > maximum_nonzero_frequency:
+                interferometer.maximum_frequency = maximum_nonzero_frequency
+
+            self.per_detector_fiducial_waveforms[interferometer.name] = (
+                interferometer.get_detector_response(
+                    self.fiducial_polarizations, parameters))
+        self.waveform_generator.waveform_arguments["fiducial"] = False
+        return
+
+    def log_likelihood(self):
+        return self.log_likelihood_ratio() + self.noise_log_likelihood()
+
+    def log_likelihood_ratio(self):
+        d_inner_h = 0.
+        optimal_snr_squared = 0.
+        complex_matched_filter_snr = 0.
+        self.parameters.update(self.get_sky_frame_parameters())
+
+        for interferometer in self.interferometers:
+            waveform_ratio = self.compute_relative_ratio(self.parameters,
+                                                         interferometer)
+            per_detector_snr = self.calculate_snrs_relative_binning(waveform_ratio, interferometer)
+
+            d_inner_h += per_detector_snr.d_inner_h
+            optimal_snr_squared += np.real(
+                per_detector_snr.optimal_snr_squared)
+            complex_matched_filter_snr += per_detector_snr.complex_matched_filter_snr
+
+        log_l = np.real(d_inner_h) - optimal_snr_squared / 2
+        return float(log_l.real)
+
+    def find_maximum_likelihood_waveform(self, initial_parameter_guess,
+                                         parameter_bounds, iterations=10,
+                                         likelihood_threshold=1):
+        prev_log_likelihood = -np.inf
+        for i in range(iterations):
+            print("iter: %s" % i)
+            print("length of parameter_bounds", len(parameter_bounds))
+            log_likelihood = self.get_best_fit_parameters(
+                self.get_parameter_list_from_dictionary(parameter_bounds),
+                atol=1e-10, maxiter=10)  # change back to 500, no input
+            print("likelihood: %s" % log_likelihood)
+
+            self.maximum_likelihood_parameters.update(self.get_sky_frame_parameters())
+            self.set_fiducial_waveforms(self.maximum_likelihood_parameters)
+            self.compute_summary_data()
+
+            if np.abs(log_likelihood - prev_log_likelihood) < (
+                    likelihood_threshold):
+                print('Likelihood change threshold reached. Stopping.')
+                return
+
+            prev_log_likelihood = log_likelihood
+
+        print("Max iteration reached. Stopping.")
+        return
+
+    def get_best_fit_parameters(self, initial_parameter_bounds, maxiter=500,
+                                atol=1e-10):
+        # Walk uphill using differential evolution from scipy.
+        print('computing maxL parameters...')
+        print('par bounds', initial_parameter_bounds)
+        output = differential_evolution(
+            self.log_likelihood_ratio_relative_binning,
+            bounds=initial_parameter_bounds, atol=atol,
+            maxiter=maxiter)
+        best_fit = output['x']
+        log_likelihood = -output['fun']
+        # Output best-fit parameters if requested.
+        self.maximum_likelihood_parameters = (
+            self.get_parameter_dictionary_from_list(best_fit))
+        print('log-likelihood = ', log_likelihood)
+        for param in self.maximum_likelihood_parameters.keys():
+            print('best fit %s = %s' % (
+                param, self.maximum_likelihood_parameters[param]))
+
+        return log_likelihood
+
+    def get_parameter_dictionary_from_list(self, parameter_values_sorted):
+        # Combine sorted keys, values.
+        return dict(zip(self.initial_parameter_keys_sorted,
+                        parameter_values_sorted))
+
+    def get_parameter_list_from_dictionary(self, parameter_dict):
+        # Use sorted keys.
+        # If no parameters inputted, use self.parameters.
+        return [parameter_dict[k] for k in self.initial_parameter_keys_sorted]
+
+    def compute_summary_data(self):
+        summary_data = dict()
+
+        for interferometer in self.interferometers:
+            mask = interferometer.frequency_mask
+            masked_frequency_array = interferometer.frequency_array[mask]
+            masked_bin_inds = []
+            for edge in self.bin_freqs[interferometer.name]:
+                index = np.where(masked_frequency_array == edge)[0][0]
+                masked_bin_inds.append(index)
+            masked_strain = interferometer.frequency_domain_strain[mask]
+            masked_h0 = self.per_detector_fiducial_waveforms[interferometer.name][mask]
+            masked_psd = interferometer.power_spectral_density_array[mask]
+            a0, b0, a1, b1 = np.zeros((4, self.number_of_bins), dtype=np.complex)
+
+            for i in range(self.number_of_bins):
+
+                central_frequency_i = 0.5 * \
+                    (masked_frequency_array[masked_bin_inds[i]] + masked_frequency_array[masked_bin_inds[i + 1]])
+                masked_strain_i = masked_strain[masked_bin_inds[i]:masked_bin_inds[i + 1]]
+                masked_h0_i = masked_h0[masked_bin_inds[i]:masked_bin_inds[i + 1]]
+                masked_psd_i = masked_psd[masked_bin_inds[i]:masked_bin_inds[i + 1]]
+                masked_frequency_i = masked_frequency_array[masked_bin_inds[i]:masked_bin_inds[i + 1]]
+
+                a0[i] = noise_weighted_inner_product(
+                    masked_h0_i,
+                    masked_strain_i,
+                    masked_psd_i,
+                    self.waveform_generator.duration)
+
+                b0[i] = noise_weighted_inner_product(
+                    masked_h0_i,
+                    masked_h0_i,
+                    masked_psd_i,
+                    self.waveform_generator.duration)
+
+                a1[i] = noise_weighted_inner_product(
+                    masked_h0_i,
+                    masked_strain_i * (masked_frequency_i - central_frequency_i),
+                    masked_psd_i,
+                    self.waveform_generator.duration)
+
+                b1[i] = noise_weighted_inner_product(
+                    masked_h0_i,
+                    masked_h0_i * (masked_frequency_i - central_frequency_i),
+                    masked_psd_i,
+                    self.waveform_generator.duration)
+
+            summary_data[interferometer.name] = dict(a0=a0, a1=a1, b0=b0, b1=b1)
+
+        self.summary_data = summary_data
+
+    def compute_relative_ratio(self, parameter_dictionary, interferometer):
+
+        self.waveform_generator.parameters = parameter_dictionary
+        new_polarizations = self.waveform_generator.frequency_domain_strain(parameter_dictionary)
+        h = interferometer.get_detector_response_relative_binning(
+            new_polarizations, parameter_dictionary, self.bin_freqs[interferometer.name])
+        h0 = self.per_detector_fiducial_waveforms[interferometer.name][self.bin_inds[interferometer.name]]
+        waveform_ratio = h / h0
+
+        r0 = (waveform_ratio[1:] + waveform_ratio[:-1]) / 2
+        r1 = (waveform_ratio[1:] - waveform_ratio[:-1]) / (
+            self.bin_freqs[interferometer.name][1:] - self.bin_freqs[interferometer.name][:-1])
+
+        return [r0, r1]
+
+    def calculate_snrs_relative_binning(self, waveform_ratio, interferometer):
+        summary_data_per_interferometer = self.summary_data[interferometer.name]
+        a0 = summary_data_per_interferometer["a0"]
+        a1 = summary_data_per_interferometer["a1"]
+        b0 = summary_data_per_interferometer["b0"]
+        b1 = summary_data_per_interferometer["b1"]
+
+        r0, r1 = waveform_ratio
+
+        d_inner_h = np.sum(a0 * np.conjugate(r0) + a1 * np.conjugate(r1))
+        h_inner_h = np.sum(b0 * np.abs(r0) ** 2 + 2 * b1 * np.real(
+            r0 * np.conjugate(r1)))
+        optimal_snr_squared = h_inner_h
+        complex_matched_filter_snr = d_inner_h / (optimal_snr_squared ** 0.5)
+
+        return self._CalculatedSNRs(
+            d_inner_h=d_inner_h, optimal_snr_squared=optimal_snr_squared,
+            complex_matched_filter_snr=complex_matched_filter_snr,
+            d_inner_h_squared_tc_array=None)

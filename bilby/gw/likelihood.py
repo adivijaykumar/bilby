@@ -1534,8 +1534,7 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
         self.parameters.update(self.get_sky_frame_parameters())
 
         for interferometer in self.interferometers:
-            waveform_ratio = self.compute_relative_ratio(self.parameters,
-                                                         interferometer)
+            waveform_ratio = self.compute_relative_ratio(interferometer)
             per_detector_snr = self.calculate_snrs_relative_binning(waveform_ratio, interferometer)
 
             d_inner_h += per_detector_snr.d_inner_h
@@ -1655,12 +1654,11 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
 
         self.summary_data = summary_data
 
-    def compute_relative_ratio(self, parameter_dictionary, interferometer):
+    def compute_relative_ratio(self, interferometer):
 
-        self.waveform_generator.parameters = parameter_dictionary
-        new_polarizations = self.waveform_generator.frequency_domain_strain(parameter_dictionary)
+        new_polarizations = self.waveform_generator.frequency_domain_strain(self.parameters)
         h = interferometer.get_detector_response_relative_binning(
-            new_polarizations, parameter_dictionary, self.bin_freqs[interferometer.name])
+            new_polarizations, self.parameters, self.bin_freqs[interferometer.name])
         h0 = self.per_detector_fiducial_waveforms[interferometer.name][self.bin_inds[interferometer.name]]
         waveform_ratio = h / h0
 

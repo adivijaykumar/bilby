@@ -1927,7 +1927,7 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
         return d_inner_h, h_inner_h
 
     def generate_phase_sample_from_marginalized_likelihood(
-            self, signal_polarizations=None):
+            self, waveform_ratio=None):
         """
         Generate a single sample from the posterior distribution for phase when
         using a likelihood which explicitly marginalises over phase.
@@ -1949,10 +1949,10 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
         This is only valid when assumes that mu(phi) \propto exp(-2i phi).
         """
         self.parameters.update(self.get_sky_frame_parameters())
-        if signal_polarizations is None:
-            signal_polarizations = \
-                self.waveform_generator.frequency_domain_strain(self.parameters)
-        d_inner_h, h_inner_h = self._calculate_inner_products(signal_polarizations)
+        if waveform_ratio is None:
+            waveform_ratio = \
+                self.compute_waveform_ratio(self.parameters)
+        d_inner_h, h_inner_h = self._calculate_inner_products(waveform_ratio)
 
         phases = np.linspace(0, 2 * np.pi, 101)
         phasor = np.exp(-2j * phases)

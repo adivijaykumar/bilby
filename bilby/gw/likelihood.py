@@ -1864,7 +1864,7 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
         return new_time
 
     def generate_distance_sample_from_marginalized_likelihood(
-            self, signal_polarizations=None):
+            self, waveform_ratio=None):
         """
         Generate a single sample from the posterior distribution for luminosity
         distance when using a likelihood which explicitly marginalises over
@@ -1885,10 +1885,10 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
             Sample from the distance posterior.
         """
         self.parameters.update(self.get_sky_frame_parameters())
-        if signal_polarizations is None:
-            signal_polarizations = \
-                self.waveform_generator.frequency_domain_strain(self.parameters)
-        d_inner_h, h_inner_h = self._calculate_inner_products(signal_polarizations)
+        if waveform_ratio is None:
+            waveform_ratio = \
+                self.compute_waveform_ratio(self.parameters)
+        d_inner_h, h_inner_h = self._calculate_inner_products(waveform_ratio)
 
         d_inner_h_dist = (
             d_inner_h * self.parameters['luminosity_distance'] /
@@ -1911,15 +1911,16 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
         new_distance = Interped(
             self._distance_array, distance_post).sample()
 
-        self._rescale_signal(signal_polarizations, new_distance)
+        # self._rescale_signal(signal_polarizations, new_distance)
         return new_distance
 
-    def _calculate_inner_products(self, signal_polarizations):
+    def _calculate_inner_products(self, waveform_ratio):
         d_inner_h = 0
         h_inner_h = 0
         for interferometer in self.interferometers:
-            per_detector_snr = self.calculate_snrs(
-                signal_polarizations, interferometer)
+            waveform_ratio_per_detector = waveform_ratio[interferometer.name]
+            per_detector_snr = self.calculate_snrs_relative_binning(
+                waveform_ratio_per_detector, interferometer)
 
             d_inner_h += per_detector_snr.d_inner_h
             h_inner_h += per_detector_snr.optimal_snr_squared

@@ -1760,27 +1760,26 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
         """
         if any([self.phase_marginalization, self.distance_marginalization,
                 self.time_marginalization]):
-            signal_polarizations = copy.deepcopy(
-                self.waveform_generator.frequency_domain_strain(
-                    self.parameters))
+            waveform_ratio = copy.deepcopy(
+                self.compute_waveform_ratio(self.parameters))
         else:
             return self.parameters
         if self.time_marginalization:
             new_time = self.generate_time_sample_from_marginalized_likelihood(
-                signal_polarizations=signal_polarizations)
+                waveform_ratio=waveform_ratio)
             self.parameters['geocent_time'] = new_time
         if self.distance_marginalization:
             new_distance = self.generate_distance_sample_from_marginalized_likelihood(
-                signal_polarizations=signal_polarizations)
+                waveform_ratio=waveform_ratio)
             self.parameters['luminosity_distance'] = new_distance
         if self.phase_marginalization:
             new_phase = self.generate_phase_sample_from_marginalized_likelihood(
-                signal_polarizations=signal_polarizations)
+                waveform_ratio=waveform_ratio)
             self.parameters['phase'] = new_phase
         return self.parameters.copy()
 
     def generate_time_sample_from_marginalized_likelihood(
-            self, signal_polarizations=None):
+            self, waveform_ratio=None):
         """
         Generate a single sample from the posterior distribution for coalescence
         time when using a likelihood which explicitly marginalises over time.
@@ -1791,8 +1790,8 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
 
         Parameters
         ----------
-        signal_polarizations: dict, optional
-            Polarizations modes of the template.
+        waveform_ratio: dict, optional
+            contains waveform ratios for all interferometers.
 
         Returns
         -------
@@ -1802,9 +1801,9 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
         self.parameters.update(self.get_sky_frame_parameters())
         if self.jitter_time:
             self.parameters['geocent_time'] += self.parameters['time_jitter']
-        if signal_polarizations is None:
-            signal_polarizations = \
-                self.waveform_generator.frequency_domain_strain(self.parameters)
+        if waveform_ratio is None:
+            waveform_ratio = \
+                self.compute_waveform_ratio(self.parameters)
 
         times = create_time_series(
             sampling_frequency=16384,
@@ -1817,22 +1816,30 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
         in_prior = (times >= prior.minimum) & (times < prior.maximum)
         times = times[in_prior]
 
-        n_time_steps = int(self.waveform_generator.duration * 16384)
+        # n_time_steps = int(self.waveform_generator.duration * 16384)
         d_inner_h = np.zeros(len(times), dtype=np.complex)
-        psd = np.ones(n_time_steps)
-        signal_long = np.zeros(n_time_steps, dtype=np.complex)
-        data = np.zeros(n_time_steps, dtype=np.complex)
+        # psd = np.ones(n_time_steps)
+        # signal_long = np.zeros(n_time_steps, dtype=np.complex)
+        # data = np.zeros(n_time_steps, dtype=np.complex)
         h_inner_h = np.zeros(1)
         for ifo in self.interferometers:
-            ifo_length = len(ifo.frequency_domain_strain)
-            mask = ifo.frequency_mask
-            signal = ifo.get_detector_response(
-                signal_polarizations, self.parameters)
-            signal_long[:ifo_length] = signal
-            data[:ifo_length] = np.conj(ifo.frequency_domain_strain)
-            psd[:ifo_length][mask] = ifo.power_spectral_density_array[mask]
-            d_inner_h += np.fft.fft(signal_long * data / psd)[in_prior]
-            h_inner_h += ifo.optimal_snr_squared(signal=signal).real
+            r0, r1 = waveform_ratio[ifo.name]
+            summary_data_per_interferometer = self.summary_data[ifo.name]
+            a0 = summary_data_per_interferometer["a0"]
+            a1 = summary_data_per_interferometer["a1"]
+            b0 = summary_data_per_interferometer["b0"]
+            b1 = summary_data_per_interferometer["b1"]
+            d_inner_h += np.sum(a0 * np.conjugate(r0) + a1 * np.conjugate(r1))
+            h_inner_h += np.real(np.sum(b0 * np.abs(r0) ** 2 + 2 * b1 * np.real(r0 * np.conjugate(r1))))
+            # ifo_length = len(ifo.frequency_domain_strain)
+            # mask = ifo.frequency_mask
+            # signal = ifo.get_detector_response(
+            #     signal_polarizations, self.parameters)
+            # signal_long[:ifo_length] = signal
+            # data[:ifo_length] = np.conj(ifo.frequency_domain_strain)
+            # psd[:ifo_length][mask] = ifo.power_spectral_density_array[mask]
+            # d_inner_h += np.fft.fft(signal_long * data / psd)[in_prior]
+            # h_inner_h += ifo.optimal_snr_squared(signal=signal).real
 
         if self.distance_marginalization:
             time_log_like = self.distance_marginalized_likelihood(

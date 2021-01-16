@@ -1532,11 +1532,10 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
         optimal_snr_squared = 0.
         complex_matched_filter_snr = 0.
         self.parameters.update(self.get_sky_frame_parameters())
+        waveform_ratio = self.compute_waveform_ratio(self.parameters)
 
         for interferometer in self.interferometers:
-            waveform_ratio = self.compute_relative_ratio(self.parameters,
-                                                         interferometer)
-            per_detector_snr = self.calculate_snrs_relative_binning(waveform_ratio, interferometer)
+            per_detector_snr = self.calculate_snrs_relative_binning(waveform_ratio[interferometer], interferometer)
 
             d_inner_h += per_detector_snr.d_inner_h
             optimal_snr_squared += np.real(
@@ -1655,29 +1654,32 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
 
         self.summary_data = summary_data
 
-    def compute_relative_ratio(self, parameter_dictionary, interferometer):
+    def compute_waveform_ratio(self, parameters):
+        waveform_ratio = dict()
+        self.waveform_generator.parameters = parameters
+        new_polarizations = self.waveform_generator.frequency_domain_strain(parameters)
+        for interferometer in self.interferometers:
+            h = interferometer.get_detector_response_relative_binning(
+                new_polarizations, parameters, self.bin_freqs[interferometer.name])
+            h0 = self.per_detector_fiducial_waveforms[interferometer.name][self.bin_inds[interferometer.name]]
+            waveform_ratio_per_detector = h / h0
 
-        self.waveform_generator.parameters = parameter_dictionary
-        new_polarizations = self.waveform_generator.frequency_domain_strain(parameter_dictionary)
-        h = interferometer.get_detector_response_relative_binning(
-            new_polarizations, parameter_dictionary, self.bin_freqs[interferometer.name])
-        h0 = self.per_detector_fiducial_waveforms[interferometer.name][self.bin_inds[interferometer.name]]
-        waveform_ratio = h / h0
+            r0 = (waveform_ratio_per_detector[1:] + waveform_ratio_per_detector[:-1]) / 2
+            r1 = (waveform_ratio_per_detector[1:] - waveform_ratio_per_detector[:-1]) / (
+                self.bin_freqs[interferometer.name][1:] - self.bin_freqs[interferometer.name][:-1])
 
-        r0 = (waveform_ratio[1:] + waveform_ratio[:-1]) / 2
-        r1 = (waveform_ratio[1:] - waveform_ratio[:-1]) / (
-            self.bin_freqs[interferometer.name][1:] - self.bin_freqs[interferometer.name][:-1])
+            waveform_ratio[interferometer.name] = [r0, r1]
 
-        return [r0, r1]
+        return waveform_ratio
 
-    def calculate_snrs_relative_binning(self, waveform_ratio, interferometer):
+    def calculate_snrs_relative_binning(self, waveform_ratio_per_detector, interferometer):
         summary_data_per_interferometer = self.summary_data[interferometer.name]
         a0 = summary_data_per_interferometer["a0"]
         a1 = summary_data_per_interferometer["a1"]
         b0 = summary_data_per_interferometer["b0"]
         b1 = summary_data_per_interferometer["b1"]
 
-        r0, r1 = waveform_ratio
+        r0, r1 = waveform_ratio_per_detector
 
         d_inner_h = np.sum(a0 * np.conjugate(r0) + a1 * np.conjugate(r1))
         h_inner_h = np.sum(b0 * np.abs(r0) ** 2 + 2 * b1 * np.real(

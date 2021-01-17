@@ -1525,19 +1525,22 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
     def log_likelihood(self):
         return self.log_likelihood_ratio() + self.noise_log_likelihood()
 
-    def log_likelihood_ratio(self):
+    def log_likelihood_ratio(self, parameters=None):
         d_inner_h = 0.
         optimal_snr_squared = 0.
         complex_matched_filter_snr = 0.
-        self.parameters.update(self.get_sky_frame_parameters())
-        waveform_ratio = self.compute_waveform_ratio(self.parameters)
+
+        if parameters is None:
+            parameters = self.parameters
+
+        parameters.update(self.get_sky_frame_parameters())
+        waveform_ratio = self.compute_waveform_ratio(parameters)
 
         for interferometer in self.interferometers:
-            per_detector_snr = self.calculate_snrs_relative_binning(waveform_ratio[interferometer.name], interferometer)
-
+            per_detector_snr = self.calculate_snrs_relative_binning(
+                waveform_ratio[interferometer.name], interferometer)
             d_inner_h += per_detector_snr.d_inner_h
-            optimal_snr_squared += np.real(
-                per_detector_snr.optimal_snr_squared)
+            optimal_snr_squared += np.real(per_detector_snr.optimal_snr_squared)
             complex_matched_filter_snr += per_detector_snr.complex_matched_filter_snr
 
         log_l = np.real(d_inner_h) - optimal_snr_squared / 2
@@ -1548,7 +1551,7 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
         parameter_bounds_list = self.get_parameter_list_from_dictionary(self.parameter_bounds)
 
         for i in range(iterations):
-            logger.info("Optimizing fiducial parameters. Iteration : %s" % i)
+            logger.info("Optimizing fiducial parameters. Iteration : %s" % i + 1)
             output = differential_evolution(self.lnlike_scipy_optimize,
                                             bounds=parameter_bounds_list, atol=atol, maxiter=maxiter)
             updated_parameters_list = output['x']
@@ -1564,8 +1567,7 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
     def lnlike_scipy_optimize(self, parameter_list):
         parameter_dictionary = self.get_parameter_dictionary_from_list(parameter_list)
         # parameter_dictionary[""]
-        self.parameters = parameter_dictionary
-        return self.log_likelihood_ratio()
+        return self.log_likelihood_ratio(parameter_dictionary)
 
     def get_parameter_dictionary_from_list(self, parameter_list):
         # Combine sorted keys, values.

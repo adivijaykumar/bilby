@@ -1457,10 +1457,10 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
         self.setup_bins()
         self.compute_summary_data()
         logger.info("Summary Data Obtained")
-        self.parameters_to_be_updated = {"chirp_mass", "mass_ratio", "a_1", "a_2", "tilt_1",
-                                         "tilt_2", "phi_12", "phi_jl", "lambda_1", "lambda_2"}
+
         if update_fiducial_parameters:
-            self.fiducial_parameter_keys_sorted = sorted(self.fiducial_parameters)
+            self.parameters_to_be_updated = sorted({"chirp_mass", "mass_ratio", "a_1", "a_2", "tilt_1",
+                                                    "tilt_2", "phi_12", "phi_jl", "lambda_1", "lambda_2"})
             self.fiducial_parameters = self.find_maximum_likelihood_parameters()
 
     def __repr__(self):
@@ -1525,16 +1525,14 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
     def log_likelihood(self):
         return self.log_likelihood_ratio() + self.noise_log_likelihood()
 
-    def log_likelihood_ratio(self, parameters=None):
+    def log_likelihood_ratio(self):
         d_inner_h = 0.
         optimal_snr_squared = 0.
         complex_matched_filter_snr = 0.
 
-        if parameters is None:
-            parameters = self.parameters
+        self.parameters.update(self.get_sky_frame_parameters())
 
-        parameters.update(self.get_sky_frame_parameters())
-        waveform_ratio = self.compute_waveform_ratio(parameters)
+        waveform_ratio = self.compute_waveform_ratio(self.parameters)
 
         for interferometer in self.interferometers:
             per_detector_snr = self.calculate_snrs_relative_binning(
@@ -1546,12 +1544,12 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
         log_l = np.real(d_inner_h) - optimal_snr_squared / 2
         return float(log_l.real)
 
-    def find_maximum_likelihood_parameters(self, iterations=1, atol=1e-10, maxiter=500):
+    def find_maximum_likelihood_parameters(self, iterations=1, atol=1e-3, maxiter=100):
 
         parameter_bounds_list = self.get_parameter_list_from_dictionary(self.parameter_bounds)
 
         for i in range(iterations):
-            logger.info("Optimizing fiducial parameters. Iteration : %s" % i + 1)
+            logger.info("Optimizing fiducial parameters. Iteration : {}".format(i + 1))
             output = differential_evolution(self.lnlike_scipy_optimize,
                                             bounds=parameter_bounds_list, atol=atol, maxiter=maxiter)
             updated_parameters_list = output['x']
@@ -1565,16 +1563,18 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
         return updated_parameters
 
     def lnlike_scipy_optimize(self, parameter_list):
-        parameter_dictionary = self.get_parameter_dictionary_from_list(parameter_list)
-        # parameter_dictionary[""]
-        return self.log_likelihood_ratio(parameter_dictionary)
+        self.parameters = self.get_parameter_dictionary_from_list(parameter_list)
+        return self.log_likelihood_ratio()
 
     def get_parameter_dictionary_from_list(self, parameter_list):
-        # Combine sorted keys, values.
-        return dict(zip(self.fiducial_parameter_keys_sorted, parameter_list))
+        parameter_dictionary = dict(zip(self.parameters_to_be_updated, parameter_list))
+        excluded_parameter_keys = set(self.fiducial_parameters) - set(self.parameters_to_be_updated)
+        for key in excluded_parameter_keys:
+            parameter_dictionary[key] = self.fiducial_parameters[key]
+        return parameter_dictionary
 
     def get_parameter_list_from_dictionary(self, parameter_dict):
-        return [parameter_dict[k] for k in self.fiducial_parameter_keys_sorted]
+        return [parameter_dict[k] for k in self.parameters_to_be_updated]
 
     def compute_summary_data(self):
         summary_data = dict()

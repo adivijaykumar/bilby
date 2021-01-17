@@ -1457,11 +1457,11 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
         self.setup_bins()
         self.compute_summary_data()
         logger.info("Summary Data Obtained")
+        self.parameters_to_be_updated = sorted({"chirp_mass", "mass_ratio", "a_1", "a_2", "tilt_1",
+                                                "tilt_2", "phi_12", "phi_jl", "lambda_1", "lambda_2"})
 
         if update_fiducial_parameters:
-            self.parameters_to_be_updated = sorted({"chirp_mass", "mass_ratio", "a_1", "a_2", "tilt_1",
-                                                    "tilt_2", "phi_12", "phi_jl", "lambda_1", "lambda_2"})
-            self.fiducial_parameters = self.find_maximum_likelihood_parameters()
+            self.fiducial_parameters = self.find_maximum_likelihood_parameters(self.parameter_bounds)
 
     def __repr__(self):
         return self.__class__.__name__ + '(interferometers={},\n\twaveform_generator={},\n\fiducial_parameters={},' \
@@ -1544,13 +1544,14 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
         log_l = np.real(d_inner_h) - optimal_snr_squared / 2
         return float(log_l.real)
 
-    def find_maximum_likelihood_parameters(self, iterations=1, atol=1e-3, maxiter=100):
+    def find_maximum_likelihood_parameters(self, parameter_bounds,
+                                           iterations=1, atol=1e-3, maxiter=100):
 
-        parameter_bounds_list = self.get_parameter_list_from_dictionary(self.parameter_bounds)
+        parameter_bounds_list = self.get_parameter_list_from_dictionary(parameter_bounds)
 
         for i in range(iterations):
             logger.info("Optimizing fiducial parameters. Iteration : {}".format(i + 1))
-            output = differential_evolution(self.lnlike_scipy_optimize,
+            output = differential_evolution(self.lnlike_scipy_maximize,
                                             bounds=parameter_bounds_list, atol=atol, maxiter=maxiter)
             updated_parameters_list = output['x']
             updated_parameters = self.get_parameter_dictionary_from_list(updated_parameters_list)
@@ -1562,9 +1563,9 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
         logger.info("Summary Data updated")
         return updated_parameters
 
-    def lnlike_scipy_optimize(self, parameter_list):
+    def lnlike_scipy_maximize(self, parameter_list):
         self.parameters = self.get_parameter_dictionary_from_list(parameter_list)
-        return self.log_likelihood_ratio()
+        return -self.log_likelihood_ratio()
 
     def get_parameter_dictionary_from_list(self, parameter_list):
         parameter_dictionary = dict(zip(self.parameters_to_be_updated, parameter_list))

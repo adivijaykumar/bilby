@@ -1911,8 +1911,13 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
         new_distance = Interped(
             self._distance_array, distance_post).sample()
 
-        # self._rescale_signal(signal_polarizations, new_distance)
+        self._rescale_signal(waveform_ratio, new_distance)
         return new_distance
+
+    def _rescale_signal(self, waveform_ratio, new_distance):
+        for ifo in self.interferometers:
+            for i in range(2):
+                waveform_ratio[ifo.name][i] *= self._ref_dist / new_distance
 
     def _calculate_inner_products(self, waveform_ratio):
         d_inner_h = 0

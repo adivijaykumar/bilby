@@ -654,6 +654,7 @@ def _base_relativebinning_waveform(
     """
     frequency_bin_edges = waveform_arguments['frequency_bin_edges']
     reference_frequency = waveform_arguments['reference_frequency']
+    catch_waveform_errors = waveform_arguments['catch_waveform_errors']
     approximant = lalsim_GetApproximantFromString(
         waveform_arguments['waveform_approximant'])
 
@@ -676,10 +677,31 @@ def _base_relativebinning_waveform(
     #     spin_2z, reference_frequency, luminosity_distance, iota,
     #     waveform_dictionary, approximant, frequency_bin_edges)
 
-    h_binned_plus, h_binned_cross = lalsim_SimInspiralChooseFDWaveformSequence(
-        phase, mass_1, mass_2, spin_1x, spin_1y, spin_1z, spin_2x, spin_2y,
-        spin_2z, reference_frequency, luminosity_distance, iota,
-        waveform_dictionary, approximant, frequency_bin_edges)
+    try:
+        h_binned_plus, h_binned_cross = lalsim_SimInspiralChooseFDWaveformSequence(
+            phase, mass_1, mass_2, spin_1x, spin_1y, spin_1z, spin_2x, spin_2y,
+            spin_2z, reference_frequency, luminosity_distance, iota,
+            waveform_dictionary, approximant, frequency_bin_edges)
+    except Exception as e:
+        if not catch_waveform_errors:
+            raise
+        else:
+            EDOM = (e.args[0] == 'Internal function call failed: Input domain error')
+            if EDOM:
+                failed_parameters = dict(mass_1=mass_1, mass_2=mass_2,
+                                         spin_1=(spin_1x, spin_2y, spin_1z),
+                                         spin_2=(spin_2x, spin_2y, spin_2z),
+                                         luminosity_distance=luminosity_distance,
+                                         iota=iota, phase=phase,
+                                         # eccentricity=eccentricity,
+                                         # start_frequency=start_frequency
+                                         )
+                logger.warning("Evaluating the waveform failed with error: {}\n".format(e) +
+                               "The parameters were {}\n".format(failed_parameters) +
+                               "Likelihood will be set to -inf.")
+                return None
+            else:
+                raise
 
     waveform_polarizations = dict(
         plus=h_binned_plus.data.data, cross=h_binned_cross.data.data)

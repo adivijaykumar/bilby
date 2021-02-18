@@ -305,13 +305,11 @@ class TestRelbinBBH(unittest.TestCase):
                 self.frequency_array, **raise_error_parameters
             )
 
-    def test_relbin_bbh_works_without_waveform_parameters(self):
-        self.assertIsInstance(
+    def test_relbin_bbh_fails_without_fiducial_option(self):
+        with self.assertRaises(KeyError):
             bilby.gw.source.lal_binary_black_hole_relativebinning(
                 self.frequency_array, **self.parameters
-            ),
-            dict,
-        )
+            )
 
     def test_relbin_bbh_xpprecession_version(self):
         self.parameters.update(self.waveform_kwargs_fiducial)
@@ -366,13 +364,11 @@ class TestRelbinBNS(unittest.TestCase):
             dict,
         )
 
-    def test_relbin_bns_works_without_waveform_parameters(self):
-        self.assertIsInstance(
+    def test_relbin_bns_fails_without_fiducial_option(self):
+        with self.assertRaises(KeyError):
             bilby.gw.source.lal_binary_neutron_star_relativebinning(
                 self.frequency_array, **self.parameters
-            ),
-            dict,
-        )
+            )
 
     def test_fails_without_tidal_parameters(self):
         self.parameters.pop("lambda_1")

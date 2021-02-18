@@ -284,6 +284,7 @@ class TestRelbinBBH(unittest.TestCase):
     def tearDown(self):
         del self.parameters
         del self.waveform_kwargs_fiducial
+        del self.waveform_kwargs_binned
         del self.frequency_array
         del self.bad_parameters
 
@@ -382,15 +383,32 @@ class TestRelbinBNS(unittest.TestCase):
             minimum_frequency=20.0,
             fiducial=True,
         )
+        self.waveform_kwargs_binned = dict(
+            waveform_approximant="IMRPhenomPv2_NRTidal",
+            reference_frequency=50.0,
+            minimum_frequency=20.0,
+            fiducial=False,
+            frequency_bin_edges=np.arange(20, 1500, 50),
+        )
         self.frequency_array = bilby.core.utils.create_frequency_series(2048, 4)
 
     def tearDown(self):
         del self.parameters
         del self.waveform_kwargs_fiducial
+        del self.waveform_kwargs_binned
         del self.frequency_array
 
-    def test_relbin_bns_runs_with_valid_parameters(self):
+    def test_relbin_fiducial_bns_runs_with_valid_parameters(self):
         self.parameters.update(self.waveform_kwargs_fiducial)
+        self.assertIsInstance(
+            bilby.gw.source.lal_binary_neutron_star_relativebinning(
+                self.frequency_array, **self.parameters
+            ),
+            dict,
+        )
+
+    def test_relbin_binned_bns_runs_with_valid_parameters(self):
+        self.parameters.update(self.waveform_kwargs_binned)
         self.assertIsInstance(
             bilby.gw.source.lal_binary_neutron_star_relativebinning(
                 self.frequency_array, **self.parameters
@@ -404,10 +422,19 @@ class TestRelbinBNS(unittest.TestCase):
                 self.frequency_array, **self.parameters
             )
 
-    def test_fails_without_tidal_parameters(self):
+    def test_fiducial_fails_without_tidal_parameters(self):
         self.parameters.pop("lambda_1")
         self.parameters.pop("lambda_2")
         self.parameters.update(self.waveform_kwargs_fiducial)
+        with self.assertRaises(TypeError):
+            bilby.gw.source.lal_binary_neutron_star_relativebinning(
+                self.frequency_array, **self.parameters
+            )
+
+    def test_binned_fails_without_tidal_parameters(self):
+        self.parameters.pop("lambda_1")
+        self.parameters.pop("lambda_2")
+        self.parameters.update(self.waveform_kwargs_binned)
         with self.assertRaises(TypeError):
             bilby.gw.source.lal_binary_neutron_star_relativebinning(
                 self.frequency_array, **self.parameters

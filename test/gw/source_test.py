@@ -269,6 +269,14 @@ class TestRelbinBBH(unittest.TestCase):
             catch_waveform_errors=True,
             fiducial=True,
         )
+        self.waveform_kwargs_binned = dict(
+            waveform_approximant="IMRPhenomPv2",
+            reference_frequency=50.0,
+            minimum_frequency=20.0,
+            catch_waveform_errors=True,
+            fiducial=False,
+            frequency_bin_edges=np.arange(20, 1500, 50)
+        )
         self.frequency_array = bilby.core.utils.create_frequency_series(2048, 4)
         self.bad_parameters = copy(self.parameters)
         self.bad_parameters["mass_1"] = -30.0
@@ -279,7 +287,7 @@ class TestRelbinBBH(unittest.TestCase):
         del self.frequency_array
         del self.bad_parameters
 
-    def test_relbin_bbh_works_runs_valid_parameters(self):
+    def test_relbin_fiducial_bbh_works_runs_valid_parameters(self):
         self.parameters.update(self.waveform_kwargs_fiducial)
         self.assertIsInstance(
             bilby.gw.source.lal_binary_black_hole_relativebinning(
@@ -288,7 +296,16 @@ class TestRelbinBBH(unittest.TestCase):
             dict,
         )
 
-    def test_waveform_error_catching(self):
+    def test_relbin_binned_bbh_works_runs_valid_parameters(self):
+        self.parameters.update(self.waveform_kwargs_binned)
+        self.assertIsInstance(
+            bilby.gw.source.lal_binary_black_hole_relativebinning(
+                self.frequency_array, **self.parameters
+            ),
+            dict,
+        )
+
+    def test_waveform_error_catching_fiducial(self):
         self.bad_parameters.update(self.waveform_kwargs_fiducial)
         self.assertIsNone(
             bilby.gw.source.lal_binary_black_hole_relativebinning(
@@ -296,9 +313,26 @@ class TestRelbinBBH(unittest.TestCase):
             )
         )
 
-    def test_waveform_error_raising(self):
+    def test_waveform_error_catching_binned(self):
+        self.bad_parameters.update(self.waveform_kwargs_binned)
+        self.assertIsNone(
+            bilby.gw.source.lal_binary_black_hole_relativebinning(
+                self.frequency_array, **self.bad_parameters
+            )
+        )
+
+    def test_waveform_error_raising_fiducial(self):
         raise_error_parameters = copy(self.bad_parameters)
         raise_error_parameters.update(self.waveform_kwargs_fiducial)
+        raise_error_parameters["catch_waveform_errors"] = False
+        with self.assertRaises(Exception):
+            bilby.gw.source.lal_binary_black_hole_relativebinning(
+                self.frequency_array, **raise_error_parameters
+            )
+
+    def test_waveform_error_raising_binned(self):
+        raise_error_parameters = copy(self.bad_parameters)
+        raise_error_parameters.update(self.waveform_kwargs_binned)
         raise_error_parameters["catch_waveform_errors"] = False
         with self.assertRaises(Exception):
             bilby.gw.source.lal_binary_black_hole_relativebinning(

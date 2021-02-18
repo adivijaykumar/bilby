@@ -1414,6 +1414,51 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
     parameter_bounds: dict, optional
         Dictionary of bounds (lists) for the initial parameters when finding
         the initial maximum likelihood (fiducial) waveform.
+    distance_marginalization: bool, optional
+        If true, marginalize over distance in the likelihood.
+        This uses a look up table calculated at run time.
+        The distance prior is set to be a delta function at the minimum
+        distance allowed in the prior being marginalised over.
+    time_marginalization: bool, optional
+        If true, marginalize over time in the likelihood.
+        This uses a FFT to calculate the likelihood over a regularly spaced
+        grid.
+        In order to cover the whole space the prior is set to be uniform over
+        the spacing of the array of times.
+        If using time marginalisation and jitter_time is True a "jitter"
+        parameter is added to the prior which modifies the position of the
+        grid of times.
+    phase_marginalization: bool, optional
+        If true, marginalize over phase in the likelihood.
+        This is done analytically using a Bessel function.
+        The phase prior is set to be a delta function at phase=0.
+    priors: dict, optional
+        If given, used in the distance and phase marginalization.
+    distance_marginalization_lookup_table: (dict, str), optional
+        If a dict, dictionary containing the lookup_table, distance_array,
+        (distance) prior_array, and reference_distance used to construct
+        the table.
+        If a string the name of a file containing these quantities.
+        The lookup table is stored after construction in either the
+        provided string or a default location:
+        '.distance_marginalization_lookup_dmin{}_dmax{}_n{}.npz'
+    jitter_time: bool, optional
+        Whether to introduce a `time_jitter` parameter. This avoids either
+        missing the likelihood peak, or introducing biases in the
+        reconstructed time posterior due to an insufficient sampling frequency.
+        Default is False, however using this parameter is strongly encouraged.
+    reference_frame: (str, bilby.gw.detector.InterferometerList, list), optional
+        Definition of the reference frame for the sky location.
+        - "sky": sample in RA/dec, this is the default
+        - e.g., "H1L1", ["H1", "L1"], InterferometerList(["H1", "L1"]):
+          sample in azimuth and zenith, `azimuth` and `zenith` defined in the
+          frame where the z-axis is aligned the the vector connecting H1
+          and L1.
+    time_reference: str, optional
+        Name of the reference for the sampled time parameter.
+        - "geocent"/"geocenter": sample in the time at the Earth's center,
+          this is the default
+        - e.g., "H1": sample in the time of arrival at H1
     chi: float, optional
         Tunable parameter which limits the perturbation of alpha when setting
         up the bin range. See https://arxiv.org/abs/1806.08792.
@@ -1428,23 +1473,31 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
         some model parameters.
     """
 
-    def __init__(self, interferometers, waveform_generator,
+    def __init__(self, interferometers,
+                 waveform_generator,
                  initial_parameters={}, parameter_bounds={},
-                 chi=1, epsilon=.5, priors=None,
                  distance_marginalization=False,
-                 phase_marginalization=False,
                  time_marginalization=False,
-                 jitter_time=False):
+                 phase_marginalization=False,
+                 priors=None,
+                 distance_marginalization_lookup_table=None,
+                 jitter_time=True,
+                 reference_frame="sky",
+                 time_reference="geocenter",
+                 chi=1,
+                 epsilon=0.5):
 
         super(RelativeBinningGravitationalWaveTransient, self).__init__(
             interferometers=interferometers,
             waveform_generator=waveform_generator,
-            priors=priors,
             distance_marginalization=distance_marginalization,
             phase_marginalization=phase_marginalization,
             time_marginalization=time_marginalization,
-            distance_marginalization_lookup_table=False,
-            jitter_time=jitter_time)
+            priors=priors,
+            distance_marginalization_lookup_table=distance_marginalization_lookup_table,
+            jitter_time=jitter_time,
+            reference_frame=reference_frame,
+            time_reference=time_reference)
 
         self.initial_parameters = initial_parameters
         self.parameter_bounds = parameter_bounds

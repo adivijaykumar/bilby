@@ -609,7 +609,8 @@ def _base_relativebinning_waveform(
     Parameters
     ----------
     frequency_array: array_like
-        The frequencies at which we want to calculate the strain
+        The frequencies at which we want to calculate the strain. Ignored
+        for the relative binning model.
     mass_1: float
         The mass of the heavier object in solar masses
     mass_2: float

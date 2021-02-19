@@ -650,8 +650,6 @@ def _base_relativebinning_waveform(
     """
     waveform_approximant = waveform_kwargs['waveform_approximant']
     reference_frequency = waveform_kwargs['reference_frequency']
-    minimum_frequency = waveform_kwargs['minimum_frequency']
-    # maximum_frequency = waveform_kwargs['maximum_frequency']
     catch_waveform_errors = waveform_kwargs['catch_waveform_errors']
     pn_spin_order = waveform_kwargs['pn_spin_order']
     pn_tidal_order = waveform_kwargs['pn_tidal_order']
@@ -664,15 +662,6 @@ def _base_relativebinning_waveform(
     frequency_bin_edges = waveform_kwargs['frequency_bin_edges']
 
     approximant = lalsim_GetApproximantFromString(waveform_approximant)
-
-    if pn_amplitude_order != 0:
-        start_frequency = lalsim.SimInspiralfLow2fStart(
-            minimum_frequency, int(pn_amplitude_order), approximant)
-    else:
-        start_frequency = minimum_frequency
-
-    # frequency_bounds = ((frequency_array >= minimum_frequency) *
-    #                     (frequency_array <= maximum_frequency))
 
     luminosity_distance = luminosity_distance * 1e6 * utils.parsec
     mass_1 = mass_1 * utils.solar_mass
@@ -728,7 +717,6 @@ def _base_relativebinning_waveform(
                                          spin_2=(spin_2x, spin_2y, spin_2z),
                                          luminosity_distance=luminosity_distance,
                                          iota=iota, phase=phase,
-                                         start_frequency=start_frequency
                                          )
                 logger.warning("Evaluating the waveform failed with error: {}\n".format(e) +
                                "The parameters were {}\n".format(failed_parameters) +

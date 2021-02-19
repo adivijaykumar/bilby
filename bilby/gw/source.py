@@ -601,16 +601,15 @@ def lal_binary_neutron_star_relativebinning(
 
 
 def _base_relativebinning_waveform(
-        frequency_array, mass_1, mass_2, luminosity_distance, a_1, tilt_1,
-        phi_12, a_2, tilt_2, lambda_1, lambda_2, phi_jl, theta_jn, phase,
-        **waveform_arguments):
-    """
-    See https://git.ligo.org/lscsoft/lalsuite/blob/master/lalsimulation/src/LALSimInspiral.c#L1460
+        frequency_array, mass_1, mass_2, luminosity_distance, theta_jn, phase,
+        a_1=0.0, a_2=0.0, tilt_1=0.0, tilt_2=0.0, phi_12=0.0, phi_jl=0.0,
+        lambda_1=0.0, lambda_2=0.0, **waveform_kwargs):
+    """ Generate a cbc waveform model using lalsimulation
 
     Parameters
     ----------
-    frequency_array: np.array
-        This input is ignored for the roq source model
+    frequency_array: array_like
+        The frequencies at which we want to calculate the strain
     mass_1: float
         The mass of the heavier object in solar masses
     mass_2: float
@@ -622,60 +621,96 @@ def _base_relativebinning_waveform(
     tilt_1: float
         Primary tilt angle
     phi_12: float
-
+        Azimuthal angle between the component spins
     a_2: float
         Dimensionless secondary spin magnitude
     tilt_2: float
         Secondary tilt angle
     phi_jl: float
-
+        Azimuthal angle between the total and orbital angular momenta
     theta_jn: float
         Orbital inclination
     phase: float
         The phase at coalescence
+    lambda_1: float
+        Tidal deformability of the more massive object
+    lambda_2: float
+        Tidal deformability of the less massive object
+    kwargs: dict
+        Optional keyword arguments
 
     Waveform arguments
     ------------------
     Non-sampled extra data used in the source model calculation
-    frequency_nodes_linear: np.array
-    frequency_nodes_quadratic: np.array
-    reference_frequency: float
-    approximant: str
-
-    Note: for the frequency_nodes_linear and frequency_nodes_quadratic arguments,
-    if using data from https://git.ligo.org/lscsoft/ROQ_data, this should be
-    loaded as `np.load(filename).T`.
+    frequency_bin_edges: np.array
 
     Returns
     -------
-    waveform_polarizations: dict
-        Dict containing plus and cross modes evaluated at the linear and
-        quadratic frequency nodes.
+    dict: A dictionary with the plus and cross polarisation strain modes
     """
-    frequency_bin_edges = waveform_arguments['frequency_bin_edges']
-    reference_frequency = waveform_arguments['reference_frequency']
-    catch_waveform_errors = waveform_arguments['catch_waveform_errors']
-    approximant = lalsim_GetApproximantFromString(
-        waveform_arguments['waveform_approximant'])
+    waveform_approximant = waveform_kwargs['waveform_approximant']
+    reference_frequency = waveform_kwargs['reference_frequency']
+    minimum_frequency = waveform_kwargs['minimum_frequency']
+    # maximum_frequency = waveform_kwargs['maximum_frequency']
+    catch_waveform_errors = waveform_kwargs['catch_waveform_errors']
+    pn_spin_order = waveform_kwargs['pn_spin_order']
+    pn_tidal_order = waveform_kwargs['pn_tidal_order']
+    pn_phase_order = waveform_kwargs['pn_phase_order']
+    pn_amplitude_order = waveform_kwargs['pn_amplitude_order']
+    waveform_dictionary = waveform_kwargs.get(
+        'lal_waveform_dictionary', lal.CreateDict()
+    )
+
+    frequency_bin_edges = waveform_kwargs['frequency_bin_edges']
+
+    approximant = lalsim_GetApproximantFromString(waveform_approximant)
+
+    if pn_amplitude_order != 0:
+        start_frequency = lalsim.SimInspiralfLow2fStart(
+            minimum_frequency, int(pn_amplitude_order), approximant)
+    else:
+        start_frequency = minimum_frequency
+
+    # frequency_bounds = ((frequency_array >= minimum_frequency) *
+    #                     (frequency_array <= maximum_frequency))
 
     luminosity_distance = luminosity_distance * 1e6 * utils.parsec
     mass_1 = mass_1 * utils.solar_mass
     mass_2 = mass_2 * utils.solar_mass
 
-    waveform_dictionary = lal.CreateDict()
+    iota, spin_1x, spin_1y, spin_1z, spin_2x, spin_2y, spin_2z = bilby_to_lalsimulation_spins(
+        theta_jn=theta_jn, phi_jl=phi_jl, tilt_1=tilt_1, tilt_2=tilt_2,
+        phi_12=phi_12, a_1=a_1, a_2=a_2, mass_1=mass_1, mass_2=mass_2,
+        reference_frequency=reference_frequency, phase=phase)
+
+    lalsim.SimInspiralWaveformParamsInsertPNSpinOrder(
+        waveform_dictionary, int(pn_spin_order))
+    lalsim.SimInspiralWaveformParamsInsertPNTidalOrder(
+        waveform_dictionary, int(pn_tidal_order))
+    lalsim.SimInspiralWaveformParamsInsertPNPhaseOrder(
+        waveform_dictionary, int(pn_phase_order))
+    lalsim.SimInspiralWaveformParamsInsertPNAmplitudeOrder(
+        waveform_dictionary, int(pn_amplitude_order))
     lalsim_SimInspiralWaveformParamsInsertTidalLambda1(
         waveform_dictionary, lambda_1)
     lalsim_SimInspiralWaveformParamsInsertTidalLambda2(
         waveform_dictionary, lambda_2)
 
-    iota, spin_1x, spin_1y, spin_1z, spin_2x, spin_2y, spin_2z = bilby_to_lalsimulation_spins(
-        theta_jn=theta_jn, phi_jl=phi_jl, tilt_1=tilt_1, tilt_2=tilt_2,
-        phi_12=phi_12, a_1=a_1, a_2=a_2, mass_1=mass_1, mass_2=mass_2,
-        reference_frequency=reference_frequency, phase=phase)
-    # print(
-    #     phase, mass_1, mass_2, spin_1x, spin_1y, spin_1z, spin_2x, spin_2y,
-    #     spin_2z, reference_frequency, luminosity_distance, iota,
-    #     waveform_dictionary, approximant, frequency_bin_edges)
+    for key, value in waveform_kwargs.items():
+        func = getattr(lalsim, "SimInspiralWaveformParamsInsert" + key, None)
+        if func is not None:
+            func(waveform_dictionary, value)
+
+    if waveform_kwargs.get('numerical_relativity_file', None) is not None:
+        lalsim.SimInspiralWaveformParamsInsertNumRelData(
+            waveform_dictionary, waveform_kwargs['numerical_relativity_file'])
+
+    if ('mode_array' in waveform_kwargs) and waveform_kwargs['mode_array'] is not None:
+        mode_array = waveform_kwargs['mode_array']
+        mode_array_lal = lalsim.SimInspiralCreateModeArray()
+        for mode in mode_array:
+            lalsim.SimInspiralModeArrayActivateMode(mode_array_lal, mode[0], mode[1])
+        lalsim.SimInspiralWaveformParamsInsertModeArray(waveform_dictionary, mode_array_lal)
 
     try:
         h_binned_plus, h_binned_cross = lalsim_SimInspiralChooseFDWaveformSequence(
@@ -693,8 +728,7 @@ def _base_relativebinning_waveform(
                                          spin_2=(spin_2x, spin_2y, spin_2z),
                                          luminosity_distance=luminosity_distance,
                                          iota=iota, phase=phase,
-                                         # eccentricity=eccentricity,
-                                         # start_frequency=start_frequency
+                                         start_frequency=start_frequency
                                          )
                 logger.warning("Evaluating the waveform failed with error: {}\n".format(e) +
                                "The parameters were {}\n".format(failed_parameters) +

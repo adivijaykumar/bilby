@@ -161,57 +161,6 @@ class TestInterferometer(unittest.TestCase):
             )
         )
 
-    def test_get_detector_response_relative_binning_default_behaviour(self):
-        self.ifo.antenna_response = MagicMock(return_value=1)
-        self.ifo.time_delay_from_geocenter = MagicMock(return_value=0)
-        self.ifo.epoch = 0
-        self.minimum_frequency = 10
-        self.maximum_frequency = 20
-        plus = np.linspace(0, 4096, 4097)
-        response = self.ifo.get_detector_response(
-            waveform_polarizations=dict(plus=plus),
-            parameters=dict(ra=0, dec=0, geocent_time=0, psi=0),
-        )
-        self.assertTrue(
-            np.array_equal(response, plus * self.ifo.frequency_mask * np.exp(-0j))
-        )
-
-    def test_get_detector_response_relative_binning_with_dt(self):
-        self.ifo.antenna_response = MagicMock(return_value=1)
-        self.ifo.time_delay_from_geocenter = MagicMock(return_value=0)
-        self.ifo.epoch = 1
-        self.minimum_frequency = 10
-        self.maximum_frequency = 20
-        plus = np.linspace(0, 4096, 4097)
-        response = self.ifo.get_detector_response(
-            waveform_polarizations=dict(plus=plus),
-            parameters=dict(ra=0, dec=0, geocent_time=0, psi=0),
-        )
-        expected_response = (
-            plus
-            * self.ifo.frequency_mask
-            * np.exp(-1j * 2 * np.pi * self.ifo.frequency_array)
-        )
-        self.assertTrue(np.allclose(abs(expected_response), abs(response)))
-
-    def test_get_detector_response_relative_binning_multiple_modes(self):
-        self.ifo.antenna_response = MagicMock(return_value=1)
-        self.ifo.time_delay_from_geocenter = MagicMock(return_value=0)
-        self.ifo.epoch = 0
-        self.minimum_frequency = 10
-        self.maximum_frequency = 20
-        plus = np.linspace(0, 4096, 4097)
-        cross = np.linspace(0, 4096, 4097)
-        response = self.ifo.get_detector_response(
-            waveform_polarizations=dict(plus=plus, cross=cross),
-            parameters=dict(ra=0, dec=0, geocent_time=0, psi=0),
-        )
-        self.assertTrue(
-            np.array_equal(
-                response, (plus + cross) * self.ifo.frequency_mask * np.exp(-0j)
-            )
-        )
-
     def test_inject_signal_from_waveform_polarizations_correct_injection(self):
         original_strain = self.ifo.strain_data.frequency_domain_strain
         self.ifo.get_detector_response = lambda x, params: x["plus"] + x["cross"]

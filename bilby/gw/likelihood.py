@@ -1430,7 +1430,7 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
 
     def __init__(self, interferometers, waveform_generator,
                  fiducial_parameters={}, parameter_bounds={}, chi=1,
-                 epsilon=.5, update_fiducial_parameters=False, **maximization_kwargs):
+                 epsilon=.5, update_fiducial_parameters=False, maximization_kwargs=dict()):
 
         super(RelativeBinningGravitationalWaveTransient, self).__init__(
             interferometers=interferometers,
@@ -1461,7 +1461,8 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
                                                 "tilt_2", "phi_12", "phi_jl", "lambda_1", "lambda_2"})
 
         if update_fiducial_parameters:
-            self.fiducial_parameters = self.find_maximum_likelihood_parameters(self.parameter_bounds, **maximization_kwargs)
+            self.fiducial_parameters = self.find_maximum_likelihood_parameters(self.parameter_bounds,
+                                                                               maximization_kwargs=maximization_kwargs)
 
     def __repr__(self):
         return self.__class__.__name__ + '(interferometers={},\n\twaveform_generator={},\n\fiducial_parameters={},' \
@@ -1545,17 +1546,13 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
         return float(log_l.real)
 
     def find_maximum_likelihood_parameters(self, parameter_bounds,
-                                           iterations=1, atol=1e-3, maxiter=100, **kwargs):
-        if "args" in kwargs:
-            atol = kwargs["atol"]
-        if "maxiter" in kwargs:
-            maxiter = kwargs["maxiter"]
+                                           iterations=1, maximization_kwargs=dict()):
         parameter_bounds_list = self.get_parameter_list_from_dictionary(parameter_bounds)
 
         for i in range(iterations):
             logger.info("Optimizing fiducial parameters. Iteration : {}".format(i + 1))
             output = differential_evolution(self.lnlike_scipy_maximize,
-                                            bounds=parameter_bounds_list, atol=atol, maxiter=maxiter)
+                                            bounds=parameter_bounds_list, **maximization_kwargs)
             updated_parameters_list = output['x']
             updated_parameters = self.get_parameter_dictionary_from_list(updated_parameters_list)
             self.set_fiducial_waveforms(updated_parameters)

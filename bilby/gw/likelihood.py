@@ -1430,7 +1430,7 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
 
     def __init__(self, interferometers, waveform_generator,
                  fiducial_parameters={}, parameter_bounds={}, chi=1,
-                 epsilon=.5, update_fiducial_parameters=False):
+                 epsilon=.5, update_fiducial_parameters=False, **maximization_kwargs):
 
         super(RelativeBinningGravitationalWaveTransient, self).__init__(
             interferometers=interferometers,
@@ -1461,7 +1461,7 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
                                                 "tilt_2", "phi_12", "phi_jl", "lambda_1", "lambda_2"})
 
         if update_fiducial_parameters:
-            self.fiducial_parameters = self.find_maximum_likelihood_parameters(self.parameter_bounds)
+            self.fiducial_parameters = self.find_maximum_likelihood_parameters(self.parameter_bounds, **maximization_kwargs)
 
     def __repr__(self):
         return self.__class__.__name__ + '(interferometers={},\n\twaveform_generator={},\n\fiducial_parameters={},' \
@@ -1545,8 +1545,11 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
         return float(log_l.real)
 
     def find_maximum_likelihood_parameters(self, parameter_bounds,
-                                           iterations=1, atol=1e-3, maxiter=100):
-
+                                           iterations=1, atol=1e-3, maxiter=100, **kwargs):
+        if "args" in kwargs:
+            atol = kwargs["atol"]
+        if "maxiter" in kwargs:
+            maxiter = kwargs["maxiter"]
         parameter_bounds_list = self.get_parameter_list_from_dictionary(parameter_bounds)
 
         for i in range(iterations):

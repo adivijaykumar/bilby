@@ -29,6 +29,8 @@ from .utils import (
     zenith_azimuth_to_ra_dec)
 from .waveform_generator import WaveformGenerator
 from collections import namedtuple
+from ..core.prior.analytical import DeltaFunction
+from ..core.prior.base import Constraint
 
 
 class GravitationalWaveTransient(Likelihood):
@@ -1429,8 +1431,8 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
     """
 
     def __init__(self, interferometers, waveform_generator,
-                 fiducial_parameters={}, parameter_bounds={}, chi=1,
-                 epsilon=.5, update_fiducial_parameters=False, **maximization_kwargs):
+                 fiducial_parameters={}, chi=1, epsilon=.5, priors=None,
+                 update_fiducial_parameters=False, maximization_kwargs=dict()):
 
         super(RelativeBinningGravitationalWaveTransient, self).__init__(
             interferometers=interferometers,
@@ -1442,7 +1444,7 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
             jitter_time=False)
 
         self.fiducial_parameters = fiducial_parameters
-        self.parameter_bounds = parameter_bounds
+        self.priors = priors
         self.chi = chi
         self.epsilon = epsilon
         self.gamma = np.array([-5 / 3, -2 / 3, 1, 5 / 3, 7 / 3])
@@ -1457,11 +1459,12 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
         self.setup_bins()
         self.compute_summary_data()
         logger.info("Summary Data Obtained")
-        self.parameters_to_be_updated = sorted({"chirp_mass", "mass_ratio", "a_1", "a_2", "tilt_1",
-                                                "tilt_2", "phi_12", "phi_jl", "lambda_1", "lambda_2"})
-
+        
         if update_fiducial_parameters:
-            self.fiducial_parameters = self.find_maximum_likelihood_parameters(self.parameter_bounds, **maximization_kwargs)
+            #write a check to make sure prior is not None
+            self.parameters_to_be_updated =  [key for key in self.priors if not isinstance(self.priors[key], (DeltaFunction, Constraint))]
+            self.parameter_bounds = self.get_bounds_from_priors(self.priors)
+            self.fiducial_parameters = self.find_maximum_likelihood_parameters(self.parameter_bounds, maximization_kwargs=maximization_kwargs)
 
     def __repr__(self):
         return self.__class__.__name__ + '(interferometers={},\n\twaveform_generator={},\n\fiducial_parameters={},' \
@@ -1545,13 +1548,12 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
         return float(log_l.real)
 
     def find_maximum_likelihood_parameters(self, parameter_bounds,
-                                           iterations=1, **kwargs):
-        parameter_bounds_list = self.get_parameter_list_from_dictionary(parameter_bounds)
+                                           iterations=1, maximization_kwargs=dict()):
 
         for i in range(iterations):
             logger.info("Optimizing fiducial parameters. Iteration : {}".format(i + 1))
             output = differential_evolution(self.lnlike_scipy_maximize,
-                                            bounds=parameter_bounds_list, **kwargs)
+                                            bounds=parameter_bounds, **maximization_kwargs)
             updated_parameters_list = output['x']
             updated_parameters = self.get_parameter_dictionary_from_list(updated_parameters_list)
             self.set_fiducial_waveforms(updated_parameters)
@@ -1573,8 +1575,14 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
             parameter_dictionary[key] = self.fiducial_parameters[key]
         return parameter_dictionary
 
-    def get_parameter_list_from_dictionary(self, parameter_dict):
-        return [parameter_dict[k] for k in self.parameters_to_be_updated]
+    # def get_parameter_list_from_dictionary(self, parameter_dict):
+    #     return [parameter_dict[k] for k in self.parameters_to_be_updated]
+
+    def get_bounds_from_priors(self, priors):
+        bounds = []
+        for key in self.parameters_to_be_updated:
+            bounds.append([priors[key].minimum, priors[key].maximum])
+        return bounds
 
     def compute_summary_data(self):
         summary_data = dict()

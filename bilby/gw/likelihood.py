@@ -1432,7 +1432,7 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
 
     def __init__(self, interferometers, waveform_generator,
                  fiducial_parameters={}, chi=1, epsilon=.5, priors=None,
-                 update_fiducial_parameters=False, maximization_kwargs=dict()):
+                 parameter_bounds=None, update_fiducial_parameters=False, maximization_kwargs=dict()):
 
         super(RelativeBinningGravitationalWaveTransient, self).__init__(
             interferometers=interferometers,
@@ -1463,7 +1463,10 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
         if update_fiducial_parameters:
             #write a check to make sure prior is not None
             self.parameters_to_be_updated =  [key for key in self.priors if not isinstance(self.priors[key], (DeltaFunction, Constraint))]
-            self.parameter_bounds = self.get_bounds_from_priors(self.priors)
+            if parameter_bounds is None:
+                self.parameter_bounds = self.get_bounds_from_priors(self.priors)
+            else:
+                self.parameter_bounds = self.get_parameter_list_from_dictionary(parameter_bounds)
             self.fiducial_parameters = self.find_maximum_likelihood_parameters(self.parameter_bounds, maximization_kwargs=maximization_kwargs)
 
     def __repr__(self):
@@ -1575,8 +1578,8 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
             parameter_dictionary[key] = self.fiducial_parameters[key]
         return parameter_dictionary
 
-    # def get_parameter_list_from_dictionary(self, parameter_dict):
-    #     return [parameter_dict[k] for k in self.parameters_to_be_updated]
+    def get_parameter_list_from_dictionary(self, parameter_dict):
+        return [parameter_dict[k] for k in self.parameters_to_be_updated]
 
     def get_bounds_from_priors(self, priors):
         bounds = []

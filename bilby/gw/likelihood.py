@@ -1459,15 +1459,17 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
         self.setup_bins()
         self.compute_summary_data()
         logger.info("Summary Data Obtained")
-        
+
         if update_fiducial_parameters:
-            #write a check to make sure prior is not None
-            self.parameters_to_be_updated =  [key for key in self.priors if not isinstance(self.priors[key], (DeltaFunction, Constraint))]
+            # write a check to make sure prior is not None
+            self.parameters_to_be_updated = [key for key in self.priors if not isinstance(
+                self.priors[key], (DeltaFunction, Constraint))]
             if parameter_bounds is None:
                 self.parameter_bounds = self.get_bounds_from_priors(self.priors)
             else:
                 self.parameter_bounds = self.get_parameter_list_from_dictionary(parameter_bounds)
-            self.fiducial_parameters = self.find_maximum_likelihood_parameters(self.parameter_bounds, maximization_kwargs=maximization_kwargs)
+            self.fiducial_parameters = self.find_maximum_likelihood_parameters(
+                self.parameter_bounds, maximization_kwargs=maximization_kwargs)
 
     def __repr__(self):
         return self.__class__.__name__ + '(interferometers={},\n\twaveform_generator={},\n\fiducial_parameters={},' \

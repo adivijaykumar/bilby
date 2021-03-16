@@ -1844,7 +1844,7 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
         return
 
     def set_fiducial_waveforms(self, parameters):
-        self.waveform_generator.waveform_arguments["fiducial"] = True
+        parameters["fiducial"] = 1
         self.fiducial_polarizations = self.waveform_generator.frequency_domain_strain(
             parameters)
 
@@ -1864,7 +1864,7 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
             self.per_detector_fiducial_waveforms[interferometer.name] = (
                 interferometer.get_detector_response(
                     self.fiducial_polarizations, parameters))
-        self.waveform_generator.waveform_arguments["fiducial"] = False
+        parameters["fiducial"] = 0
         return
 
     def log_likelihood(self):

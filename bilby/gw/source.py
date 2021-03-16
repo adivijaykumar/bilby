@@ -535,7 +535,7 @@ def _base_roq_waveform(
 
 def lal_binary_black_hole_relativebinning(
         frequency_array, mass_1, mass_2, luminosity_distance, a_1, tilt_1,
-        phi_12, a_2, tilt_2, phi_jl, theta_jn, phase, **kwargs):
+        phi_12, a_2, tilt_2, phi_jl, theta_jn, phase, fiducial, **kwargs):
 
     waveform_kwargs = dict(
         waveform_approximant='IMRPhenomPv2', reference_frequency=50.0,
@@ -544,7 +544,7 @@ def lal_binary_black_hole_relativebinning(
         pn_phase_order=-1, pn_amplitude_order=0)
     waveform_kwargs.update(kwargs)
 
-    if waveform_kwargs["fiducial"]:
+    if fiducial == 1:
         return _base_lal_cbc_fd_waveform(
             frequency_array=frequency_array, mass_1=mass_1, mass_2=mass_2,
             luminosity_distance=luminosity_distance, theta_jn=theta_jn, phase=phase,
@@ -562,7 +562,7 @@ def lal_binary_black_hole_relativebinning(
 def lal_binary_neutron_star_relativebinning(
         frequency_array, mass_1, mass_2, luminosity_distance, a_1, tilt_1,
         phi_12, a_2, tilt_2, phi_jl, lambda_1, lambda_2, theta_jn, phase,
-        **kwargs):
+        fiducial=0, **kwargs):
 
     waveform_kwargs = dict(
         waveform_approximant='IMRPhenomPv2_NRTidal', reference_frequency=50.0,
@@ -571,7 +571,7 @@ def lal_binary_neutron_star_relativebinning(
         pn_phase_order=-1, pn_amplitude_order=0)
     waveform_kwargs.update(kwargs)
 
-    if waveform_kwargs["fiducial"]:
+    if fiducial == 1:
 
         return _base_lal_cbc_fd_waveform(
             frequency_array=frequency_array, mass_1=mass_1, mass_2=mass_2,

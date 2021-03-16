@@ -562,7 +562,7 @@ def lal_binary_black_hole_relativebinning(
 def lal_binary_neutron_star_relativebinning(
         frequency_array, mass_1, mass_2, luminosity_distance, a_1, tilt_1,
         phi_12, a_2, tilt_2, phi_jl, lambda_1, lambda_2, theta_jn, phase,
-        fiducial=0, **kwargs):
+        fiducial, **kwargs):
 
     waveform_kwargs = dict(
         waveform_approximant='IMRPhenomPv2_NRTidal', reference_frequency=50.0,

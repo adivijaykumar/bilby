@@ -29,6 +29,8 @@ from .utils import (
     zenith_azimuth_to_ra_dec)
 from .waveform_generator import WaveformGenerator
 from collections import namedtuple
+from ..core.prior.analytical import DeltaFunction
+from ..core.prior.base import Constraint
 
 
 class GravitationalWaveTransient(Likelihood):
@@ -1408,7 +1410,7 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
     waveform_generator: `bilby.waveform_generator.WaveformGenerator`
         An object which computes the frequency-domain strain of the signal,
         given some set of parameters
-    initial_parameters: dict, optional
+    fiducial_parameters: dict, optional
         A starting guess for initial parameters of the event for finding the
         maximum likelihood (fiducial) waveform.
     parameter_bounds: dict, optional
@@ -1475,7 +1477,9 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
 
     def __init__(self, interferometers,
                  waveform_generator,
-                 initial_parameters={}, parameter_bounds={},
+                 fiducial_parameters={}, parameter_bounds=None,
+                 maximization_kwargs=dict(),
+                 update_fiducial_parameters=False,
                  distance_marginalization=False,
                  time_marginalization=False,
                  phase_marginalization=False,
@@ -1499,8 +1503,8 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
             reference_frame=reference_frame,
             time_reference=time_reference)
 
-        self.initial_parameters = initial_parameters
-        self.parameter_bounds = parameter_bounds
+        self.fiducial_parameters = fiducial_parameters
+        self.priors = priors
         self.chi = chi
         self.epsilon = epsilon
         self.gamma = np.array([-5 / 3, -2 / 3, 1, 5 / 3, 7 / 3])
@@ -1510,17 +1514,29 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
         self.per_detector_fiducial_waveforms = {}
         self.bin_freqs = dict()
         self.bin_inds = dict()
-        self.initial_parameter_keys_sorted = sorted(self.initial_parameters)
-        self.maximum_likelihood_parameters = initial_parameters
-        self.set_fiducial_waveforms(self.initial_parameters)
+        self.set_fiducial_waveforms(self.fiducial_parameters)
         logger.info("Initial fiducial waveforms set up")
         self.setup_bins()
         self.compute_summary_data()
         logger.info("Summary Data Obtained")
 
+        if update_fiducial_parameters:
+            # write a check to make sure prior is not None
+            logger.info("Using scipy optimization to find maximum likelihood parameters.")
+            self.parameters_to_be_updated = [key for key in self.priors if not isinstance(
+                self.priors[key], (DeltaFunction, Constraint))]
+            logger.info("Parameters over which likelihood is maximized: {}".format(self.parameters_to_be_updated))
+            if parameter_bounds is None:
+                logger.info("No parameter bounds were given. Using priors instead.")
+                self.parameter_bounds = self.get_bounds_from_priors(self.priors)
+            else:
+                self.parameter_bounds = self.get_parameter_list_from_dictionary(parameter_bounds)
+            self.fiducial_parameters = self.find_maximum_likelihood_parameters(
+                self.parameter_bounds, maximization_kwargs=maximization_kwargs)
+
     def __repr__(self):
-        return self.__class__.__name__ + '(interferometers={},\n\twaveform_generator={},\n\initial_parameters={},' \
-            .format(self.interferometers, self.waveform_generator, self.initial_parameters)
+        return self.__class__.__name__ + '(interferometers={},\n\twaveform_generator={},\n\fiducial_parameters={},' \
+            .format(self.interferometers, self.waveform_generator, self.fiducial_parameters)
 
     def setup_bins(self):
         frequency_array = self.waveform_generator.frequency_array
@@ -1596,11 +1612,10 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
                 dtype=np.complex128)
 
         for interferometer in self.interferometers:
-            per_detector_snr = self.calculate_snrs_relative_binning(waveform_ratio[interferometer.name], interferometer)
-
+            per_detector_snr = self.calculate_snrs_relative_binning(
+                waveform_ratio[interferometer.name], interferometer)
             d_inner_h += per_detector_snr.d_inner_h
-            optimal_snr_squared += np.real(
-                per_detector_snr.optimal_snr_squared)
+            optimal_snr_squared += np.real(per_detector_snr.optimal_snr_squared)
             complex_matched_filter_snr += per_detector_snr.complex_matched_filter_snr
 
             if self.time_marginalization:
@@ -1626,62 +1641,41 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
 
         return float(log_l.real)
 
-    def find_maximum_likelihood_waveform(self, initial_parameter_guess,
-                                         parameter_bounds, iterations=10,
-                                         likelihood_threshold=1):
-        prev_log_likelihood = -np.inf
-        for i in range(iterations):
-            print("iter: %s" % i)
-            print("length of parameter_bounds", len(parameter_bounds))
-            log_likelihood = self.get_best_fit_parameters(
-                self.get_parameter_list_from_dictionary(parameter_bounds),
-                atol=1e-10, maxiter=10)  # change back to 500, no input
-            print("likelihood: %s" % log_likelihood)
+    def find_maximum_likelihood_parameters(self, parameter_bounds,
+                                           iterations=1, maximization_kwargs=dict()):
 
-            self.maximum_likelihood_parameters.update(self.get_sky_frame_parameters())
-            self.set_fiducial_waveforms(self.maximum_likelihood_parameters)
+        for i in range(iterations):
+            logger.info("Optimizing fiducial parameters. Iteration : {}".format(i + 1))
+            output = differential_evolution(self.lnlike_scipy_maximize,
+                                            bounds=parameter_bounds, **maximization_kwargs)
+            updated_parameters_list = output['x']
+            updated_parameters = self.get_parameter_dictionary_from_list(updated_parameters_list)
+            self.set_fiducial_waveforms(updated_parameters)
             self.compute_summary_data()
 
-            if np.abs(log_likelihood - prev_log_likelihood) < (
-                    likelihood_threshold):
-                print('Likelihood change threshold reached. Stopping.')
-                return
+        logger.info("Fiducial waveforms updated")
+        logger.info("Summary Data updated")
+        return updated_parameters
 
-            prev_log_likelihood = log_likelihood
+    def lnlike_scipy_maximize(self, parameter_list):
+        self.parameters = self.get_parameter_dictionary_from_list(parameter_list)
+        return -self.log_likelihood_ratio()
 
-        print("Max iteration reached. Stopping.")
-        return
-
-    def get_best_fit_parameters(self, initial_parameter_bounds, maxiter=500,
-                                atol=1e-10):
-        # Walk uphill using differential evolution from scipy.
-        print('computing maxL parameters...')
-        print('par bounds', initial_parameter_bounds)
-        output = differential_evolution(
-            self.log_likelihood_ratio_relative_binning,
-            bounds=initial_parameter_bounds, atol=atol,
-            maxiter=maxiter)
-        best_fit = output['x']
-        log_likelihood = -output['fun']
-        # Output best-fit parameters if requested.
-        self.maximum_likelihood_parameters = (
-            self.get_parameter_dictionary_from_list(best_fit))
-        print('log-likelihood = ', log_likelihood)
-        for param in self.maximum_likelihood_parameters.keys():
-            print('best fit %s = %s' % (
-                param, self.maximum_likelihood_parameters[param]))
-
-        return log_likelihood
-
-    def get_parameter_dictionary_from_list(self, parameter_values_sorted):
-        # Combine sorted keys, values.
-        return dict(zip(self.initial_parameter_keys_sorted,
-                        parameter_values_sorted))
+    def get_parameter_dictionary_from_list(self, parameter_list):
+        parameter_dictionary = dict(zip(self.parameters_to_be_updated, parameter_list))
+        excluded_parameter_keys = set(self.fiducial_parameters) - set(self.parameters_to_be_updated)
+        for key in excluded_parameter_keys:
+            parameter_dictionary[key] = self.fiducial_parameters[key]
+        return parameter_dictionary
 
     def get_parameter_list_from_dictionary(self, parameter_dict):
-        # Use sorted keys.
-        # If no parameters inputted, use self.parameters.
-        return [parameter_dict[k] for k in self.initial_parameter_keys_sorted]
+        return [parameter_dict[k] for k in self.parameters_to_be_updated]
+
+    def get_bounds_from_priors(self, priors):
+        bounds = []
+        for key in self.parameters_to_be_updated:
+            bounds.append([priors[key].minimum, priors[key].maximum])
+        return bounds
 
     def compute_summary_data(self):
         summary_data = dict()

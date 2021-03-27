@@ -1862,30 +1862,31 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
         in_prior = (times >= prior.minimum) & (times < prior.maximum)
         times = times[in_prior]
 
-        # n_time_steps = int(self.waveform_generator.duration * 16384)
+        n_time_steps = int(self.waveform_generator.duration * 16384)
         d_inner_h = np.zeros(len(times), dtype=np.complex)
-        # psd = np.ones(n_time_steps)
-        # signal_long = np.zeros(n_time_steps, dtype=np.complex)
-        # data = np.zeros(n_time_steps, dtype=np.complex)
+        psd = np.ones(n_time_steps)
+        signal_long = np.zeros(n_time_steps, dtype=np.complex)
+        data = np.zeros(n_time_steps, dtype=np.complex)
         h_inner_h = np.zeros(1)
         for ifo in self.interferometers:
+            f = ifo.frequency_array
+            ifo_length = len(f)
+            mask = ifo.frequency_mask
             r0, r1 = waveform_ratio[ifo.name]
-            summary_data_per_interferometer = self.summary_data[ifo.name]
-            a0 = summary_data_per_interferometer["a0"]
-            a1 = summary_data_per_interferometer["a1"]
-            b0 = summary_data_per_interferometer["b0"]
-            b1 = summary_data_per_interferometer["b1"]
-            d_inner_h += np.sum(a0 * np.conjugate(r0) + a1 * np.conjugate(r1))
-            h_inner_h += np.real(np.sum(b0 * np.abs(r0) ** 2 + 2 * b1 * np.real(r0 * np.conjugate(r1))))
-            # ifo_length = len(ifo.frequency_domain_strain)
-            # mask = ifo.frequency_mask
-            # signal = ifo.get_detector_response(
-            #     signal_polarizations, self.parameters)
-            # signal_long[:ifo_length] = signal
-            # data[:ifo_length] = np.conj(ifo.frequency_domain_strain)
-            # psd[:ifo_length][mask] = ifo.power_spectral_density_array[mask]
-            # d_inner_h += np.fft.fft(signal_long * data / psd)[in_prior]
-            # h_inner_h += ifo.optimal_snr_squared(signal=signal).real
+            duplicated_r0, duplicated_r1, duplicated_fm = np.zeros((3, ifo_length), dtype=np.complex)
+            for i in range(self.number_of_bins):
+                ind = self.bin_inds[ifo.name]
+                fm = 0.5 * (self.bin_freqs[ifo.name][1:] + self.bin_freqs[ifo.name][:-1])
+                duplicated_fm[ind[i]:ind[i + 1]] = fm[i]
+                duplicated_r0[ind[i]:ind[i + 1]] = r0[i]
+                duplicated_r1[ind[i]:ind[i + 1]] = r1[i]
+            duplicated_r = duplicated_r0 + duplicated_r1 * (f - duplicated_fm)
+            signal = duplicated_r * self.per_detector_fiducial_waveforms[ifo.name]
+            signal_long[:ifo_length] = signal
+            data[:ifo_length] = np.conj(ifo.frequency_domain_strain)
+            psd[:ifo_length][mask] = ifo.power_spectral_density_array[mask]
+            d_inner_h += np.fft.fft(signal_long * data / psd)[in_prior]
+            h_inner_h += ifo.optimal_snr_squared(signal=signal).real
 
         if self.distance_marginalization:
             time_log_like = self.distance_marginalized_likelihood(

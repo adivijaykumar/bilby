@@ -1504,7 +1504,6 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
             time_reference=time_reference)
 
         self.fiducial_parameters = fiducial_parameters
-        self.priors = priors
         self.chi = chi
         self.epsilon = epsilon
         self.gamma = np.array([-5 / 3, -2 / 3, 1, 5 / 3, 7 / 3])

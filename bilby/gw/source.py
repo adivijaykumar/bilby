@@ -636,6 +636,9 @@ def _base_relativebinning_waveform(
     -------
     dict: A dictionary with the plus and cross polarisation strain modes
     """
+    import lal
+    import lalsimulation as lalsim
+
     waveform_approximant = waveform_kwargs['waveform_approximant']
     reference_frequency = waveform_kwargs['reference_frequency']
     catch_waveform_errors = waveform_kwargs['catch_waveform_errors']

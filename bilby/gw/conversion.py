@@ -1132,13 +1132,21 @@ def compute_snrs(sample, likelihood):
 
     """
     if likelihood is not None:
+        if likelihood.__class__.__name__ == "RelativeBinningGravitationalWaveTransient":
+            logger.info("Relative Binning Likelihood; Calculating SNRs from Summary Data")
         if isinstance(sample, dict):
-            signal_polarizations =\
-                likelihood.waveform_generator.frequency_domain_strain(sample)
+            if likelihood.__class__.__name__ == "RelativeBinningGravitationalWaveTransient":
+                waveform_ratio = likelihood.compute_waveform_ratio(sample)
+            else:
+                signal_polarizations = likelihood.waveform_generator.frequency_domain_strain(sample)
             likelihood.parameters.update(sample)
+
             for ifo in likelihood.interferometers:
-                per_detector_snr = likelihood.calculate_snrs(
-                    signal_polarizations, ifo)
+                if likelihood.__class__.__name__ == "RelativeBinningGravitationalWaveTransient":
+                    per_detector_snr = likelihood.calculate_snrs_relative_binning(waveform_ratio[ifo.name], ifo)
+                else:
+                    per_detector_snr = likelihood.calculate_snrs(
+                        signal_polarizations, ifo)
                 sample['{}_matched_filter_snr'.format(ifo.name)] =\
                     per_detector_snr.complex_matched_filter_snr
                 sample['{}_optimal_snr'.format(ifo.name)] = \
@@ -1153,13 +1161,18 @@ def compute_snrs(sample, likelihood):
             optimal_snrs = {ifo.name: [] for ifo in likelihood.interferometers}
 
             for ii in tqdm(range(len(sample)), file=sys.stdout):
-                signal_polarizations =\
-                    likelihood.waveform_generator.frequency_domain_strain(
-                        dict(sample.iloc[ii]))
+                if likelihood.__class__.__name__ == "RelativeBinningGravitationalWaveTransient":
+                    waveform_ratio = likelihood.compute_waveform_ratio(dict(sample.iloc[ii]))
+                else:
+                    signal_polarizations =\
+                        likelihood.waveform_generator.frequency_domain_strain(dict(sample.iloc[ii]))
                 likelihood.parameters.update(sample.iloc[ii])
                 for ifo in likelihood.interferometers:
-                    per_detector_snr = likelihood.calculate_snrs(
-                        signal_polarizations, ifo)
+                    if likelihood.__class__.__name__ == "RelativeBinningGravitationalWaveTransient":
+                        per_detector_snr = likelihood.calculate_snrs_relative_binning(waveform_ratio[ifo.name], ifo)
+                    else:
+                        per_detector_snr = likelihood.calculate_snrs(
+                            signal_polarizations, ifo)
 
                     matched_filter_snrs[ifo.name].append(
                         per_detector_snr.complex_matched_filter_snr)

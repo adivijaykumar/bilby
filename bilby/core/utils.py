@@ -1,25 +1,22 @@
-
-from distutils.spawn import find_executable
-import logging
-import os
-import shutil
-import sys
-from math import fmod
 import argparse
-import inspect
 import functools
-import types
-import subprocess
-import multiprocessing
-from importlib import import_module
+import inspect
 import json
-import warnings
+import logging
+import multiprocessing
+import os
+import types
+import shutil
+import subprocess
+import sys
+from distutils.spawn import find_executable
+from importlib import import_module
+from numbers import Number
 
 import numpy as np
+import pandas as pd
 from scipy.interpolate import interp2d
 from scipy.special import logsumexp
-import pandas as pd
-import matplotlib.pyplot as plt
 
 logger = logging.getLogger('bilby')
 
@@ -37,29 +34,29 @@ def infer_parameters_from_function(func):
     """ Infers the arguments of a function
     (except the first arg which is assumed to be the dep. variable).
 
-    Throws out *args and **kwargs type arguments
+    Throws out `*args` and `**kwargs` type arguments
 
     Can deal with type hinting!
 
     Parameters
-    ----------
+    ==========
     func: function or method
        The function or method for which the parameters should be inferred.
 
     Returns
-    -------
+    =======
     list: A list of strings with the parameters
 
     Raises
-    ------
+    ======
     ValueError
        If the object passed to the function is neither a function nor a method.
 
     Notes
-    -----
-    In order to handle methods the ``type`` of the function is checked, and
+    =====
+    In order to handle methods the `type` of the function is checked, and
     if a method has been passed the first *two* arguments are removed rather than just the first one.
-    This allows the reference to the instance (conventionally named ``self``)
+    This allows the reference to the instance (conventionally named `self`)
     to be removed.
     """
     if isinstance(func, types.MethodType):
@@ -71,14 +68,14 @@ def infer_parameters_from_function(func):
 
 
 def infer_args_from_method(method):
-    """ Infers all arguments of a method except for 'self'
+    """ Infers all arguments of a method except for `self`
 
-    Throws out *args and **kwargs type arguments.
+    Throws out `*args` and `**kwargs` type arguments.
 
     Can deal with type hinting!
 
     Returns
-    ---------
+    =======
     list: A list of strings with the parameters
     """
     return infer_args_from_function_except_n_args(func=method, n=1)
@@ -90,36 +87,40 @@ def infer_args_from_function_except_n_args(func, n=1):
     signature.
 
     Parameters
-    ----------
+    ==========
     func : function or method
        The function from which the arguments should be inferred.
     n : int
        The number of arguments which should be ignored, staring at the beginning.
 
     Returns
-    -------
+    =======
     parameters: list
-       A list of parameters of the function, omitting the first ``n``.
+       A list of parameters of the function, omitting the first `n`.
 
     Extended Summary
-    ----------------
+    ================
     This function is intended to allow the handling of named arguments
     in both functions and methods; this is important, since the first
     argument of an instance method will be the instance.
 
     See Also
-    --------
+    ========
     infer_args_from_method: Provides the arguments for a method
     infer_args_from_function: Provides the arguments for a function
     infer_args_from_function_except_first_arg: Provides all but first argument of a function or method.
 
     Examples
-    --------
-    >>> def hello(a, b, c, d):
-    >>>     pass
-    >>>
-    >>> infer_args_from_function_except_n_args(hello, 2)
-    ['c', 'd']
+    ========
+
+    .. code-block:: python
+
+        >>> def hello(a, b, c, d):
+        >>>     pass
+        >>>
+        >>> infer_args_from_function_except_n_args(hello, 2)
+        ['c', 'd']
+
     """
     try:
         parameters = inspect.getfullargspec(func).args
@@ -146,17 +147,17 @@ def get_sampling_frequency(time_array):
     """
     Calculate sampling frequency from a time series
 
-    Attributes:
-    -------
+    Attributes
+    ==========
     time_array: array_like
         Time array to get sampling_frequency from
 
     Returns
-    -------
+    =======
     Sampling frequency of the time series: float
 
     Raises
-    -------
+    ======
     ValueError: If the time series is not evenly sampled.
 
     """
@@ -171,17 +172,17 @@ def get_sampling_frequency_and_duration_from_time_array(time_array):
     """
     Calculate sampling frequency and duration from a time array
 
-    Attributes:
-    -------
+    Attributes
+    ==========
     time_array: array_like
         Time array to get sampling_frequency/duration from: array_like
 
     Returns
-    -------
+    =======
     sampling_frequency, duration: float, float
 
     Raises
-    -------
+    ======
     ValueError: If the time_array is not evenly sampled.
 
     """
@@ -195,17 +196,17 @@ def get_sampling_frequency_and_duration_from_frequency_array(frequency_array):
     """
     Calculate sampling frequency and duration from a frequency array
 
-    Attributes:
-    -------
+    Attributes
+    ==========
     frequency_array: array_like
         Frequency array to get sampling_frequency/duration from: array_like
 
     Returns
-    -------
+    =======
     sampling_frequency, duration: float, float
 
     Raises
-    -------
+    ======
     ValueError: If the frequency_array is not evenly sampled.
 
     """
@@ -226,13 +227,13 @@ def create_time_series(sampling_frequency, duration, starting_time=0.):
     """
 
     Parameters
-    ----------
+    ==========
     sampling_frequency: float
     duration: float
     starting_time: float, optional
 
     Returns
-    -------
+    =======
     float: An equidistant time series given the parameters
 
     """
@@ -247,12 +248,12 @@ def create_frequency_series(sampling_frequency, duration):
     """ Create a frequency series with the correct length and spacing.
 
     Parameters
-    -------
+    ==========
     sampling_frequency: float
     duration: float
 
     Returns
-    -------
+    =======
     array_like: frequency series
 
     """
@@ -272,7 +273,7 @@ def _check_legal_sampling_frequency_and_duration(sampling_frequency, duration):
     to an integer.
 
     Parameters
-    -------
+    ==========
     sampling_frequency: float
     duration: float
 
@@ -293,7 +294,7 @@ def ra_dec_to_theta_phi(ra, dec, gmst):
     """ Convert from RA and DEC to polar coordinates on celestial sphere
 
     Parameters
-    -------
+    ==========
     ra: float
         right ascension in radians
     dec: float
@@ -302,7 +303,7 @@ def ra_dec_to_theta_phi(ra, dec, gmst):
         Greenwich mean sidereal time of arrival of the signal in radians
 
     Returns
-    -------
+    =======
     float: zenith angle in radians
     float: azimuthal angle in radians
 
@@ -318,48 +319,17 @@ def theta_phi_to_ra_dec(theta, phi, gmst):
     return ra, dec
 
 
-def gps_time_to_gmst(gps_time):
-    """
-    Convert gps time to Greenwich mean sidereal time in radians
-
-    This method assumes a constant rotation rate of earth since 00:00:00, 1 Jan. 2000
-    A correction has been applied to give the exact correct value for 00:00:00, 1 Jan. 2018
-    Error accumulates at a rate of ~0.0001 radians/decade.
-
-    Parameters
-    -------
-    gps_time: float
-        gps time
-
-    Returns
-    -------
-    float: Greenwich mean sidereal time in radians
-
-    """
-    warnings.warn(
-        "Function gps_time_to_gmst deprecated, use "
-        "lal.GreenwichMeanSiderealTime(time) instead",
-        DeprecationWarning)
-    omega_earth = 2 * np.pi * (1 / 365.2425 + 1) / 86400.
-    gps_2000 = 630720013.
-    gmst_2000 = (6 + 39. / 60 + 51.251406103947375 / 3600) * np.pi / 12
-    correction_2018 = -0.00017782487379358614
-    sidereal_time = omega_earth * (gps_time - gps_2000) + gmst_2000 + correction_2018
-    gmst = fmod(sidereal_time, 2 * np.pi)
-    return gmst
-
-
 def create_white_noise(sampling_frequency, duration):
     """ Create white_noise which is then coloured by a given PSD
 
     Parameters
-    -------
+    ==========
     sampling_frequency: float
     duration: float
         duration of the data
 
     Returns
-    -------
+    =======
     array_like: white noise
     array_like: frequency array
     """
@@ -398,14 +368,14 @@ def nfft(time_domain_strain, sampling_frequency):
         time series is real (positive frequencies only).
 
     Parameters
-    ----------
+    ==========
     time_domain_strain: array_like
         Time series of strain data.
     sampling_frequency: float
         Sampling frequency of the data.
 
     Returns
-    -------
+    =======
     frequency_domain_strain, frequency_array: (array_like, array_like)
         Single-sided FFT of time domain strain normalised to units of
         strain / Hz, and the associated frequency_array.
@@ -424,7 +394,7 @@ def infft(frequency_domain_strain, sampling_frequency):
     """ Inverse FFT for use in conjunction with nfft.
 
     Parameters
-    ----------
+    ==========
     frequency_domain_strain: array_like
         Single-sided, normalised FFT of the time-domain strain data (in units
         of strain / Hz).
@@ -432,7 +402,7 @@ def infft(frequency_domain_strain, sampling_frequency):
         Sampling frequency of the data.
 
     Returns
-    -------
+    =======
     time_domain_strain: array_like
         An array of the time domain strain
     """
@@ -445,7 +415,7 @@ def setup_logger(outdir=None, label=None, log_level='INFO', print_version=False)
     """ Setup logging output: call at the start of the script to use
 
     Parameters
-    ----------
+    ==========
     outdir, label: str
         If supplied, write the logging output to outdir/label.log
     log_level: str, optional
@@ -511,7 +481,7 @@ def spherical_to_cartesian(radius, theta, phi):
     """ Convert from spherical coordinates to cartesian.
 
     Parameters
-    -------
+    ==========
     radius: float
         radial coordinate
     theta: float
@@ -520,7 +490,7 @@ def spherical_to_cartesian(radius, theta, phi):
         azimuthal coordinate
 
     Returns
-    -------
+    =======
     list: cartesian vector
     """
     cartesian = [radius * np.sin(theta) * np.cos(phi), radius * np.sin(theta) * np.sin(phi), radius * np.cos(theta)]
@@ -531,7 +501,7 @@ def check_directory_exists_and_if_not_mkdir(directory):
     """ Checks if the given directory exists and creates it if it does not exist
 
     Parameters
-    ----------
+    ==========
     directory: str
         Name of the directory
 
@@ -549,24 +519,26 @@ def set_up_command_line_arguments():
     """ Sets up command line arguments that can be used to modify how scripts are run.
 
     Returns
-    -------
+    =======
     command_line_args, command_line_parser: tuple
         The command_line_args is a Namespace of the command line arguments while
         the command_line_parser can be given to a new `argparse.ArgumentParser`
         as a parent object from which to inherit.
 
     Notes
-    -----
+    =====
         The command line arguments are passed initially at runtime, but this parser
         does not have a `--help` option (i.e., the command line options are
         available for any script which includes `import bilby`, but no help command
         is available. This is done to avoid conflicts with child argparse routines
         (see the example below).
 
-    Example
-    -------
+    Examples
+    ========
     In the following example we demonstrate how to setup a custom command line for a
     project which uses bilby.
+
+    .. code-block:: python
 
         # Here we import bilby, which initialses and parses the default command-line args
         >>> import bilby
@@ -630,7 +602,7 @@ def derivatives(vals, func, releps=1e-3, abseps=None, mineps=1e-9, reltol=1e-3,
     method to check that the values converge as step size decreases.
 
     Parameters
-    ----------
+    ==========
     vals: array_like
         A set of values, that are passed to a function, at which to calculate
         the gradient of that function
@@ -653,7 +625,7 @@ def derivatives(vals, func, releps=1e-3, abseps=None, mineps=1e-9, reltol=1e-3,
         are calculated.
 
     Returns
-    -------
+    =======
     grads: array_like
         An array of gradients for each non-fixed value.
     """
@@ -762,7 +734,7 @@ def logtrapzexp(lnf, dx):
     Perform trapezium rule integration for the logarithm of a function on a regular grid.
 
     Parameters
-    ----------
+    ==========
     lnf: array_like
         A :class:`numpy.ndarray` of values that are the natural logarithm of a function
     dx: Union[array_like, float]
@@ -770,7 +742,7 @@ def logtrapzexp(lnf, dx):
         single step size value.
 
     Returns
-    -------
+    =======
     The natural logarithm of the area under the function.
     """
     return np.log(dx / 2.) + logsumexp([logsumexp(lnf[:-1]), logsumexp(lnf[1:])])
@@ -780,7 +752,7 @@ class SamplesSummary(object):
     """ Object to store a set of samples and calculate summary statistics
 
     Parameters
-    ----------
+    ==========
     samples: array_like
         Array of samples
     average: str {'median', 'mean'}
@@ -872,7 +844,7 @@ def run_commandline(cl, log_level=20, raise_error=True, return_output=True):
     """Run a string cmd as a subprocess, check for errors and return output.
 
     Parameters
-    ----------
+    ==========
     cl: str
         Command to run
     log_level: int
@@ -904,8 +876,9 @@ class Counter(object):
     """
     General class to count number of times a function is Called, returns total
     number of function calls
+
     Parameters
-    ----------
+    ==========
     initalval : int, 0
     number to start counting from
     """
@@ -925,10 +898,13 @@ class Counter(object):
 class UnsortedInterp2d(interp2d):
 
     def __call__(self, x, y, dx=0, dy=0, assume_sorted=False):
-        """  Wrapper to scipy.interpolate.interp2d which preserves the input ordering.
+        """  Modified version of the interp2d call method.
+
+        This avoids the outer product that is done when two numpy
+        arrays are passed.
 
         Parameters
-        ----------
+        ==========
         x: See superclass
         y: See superclass
         dx: See superclass
@@ -938,12 +914,48 @@ class UnsortedInterp2d(interp2d):
             Overwriting this will not do anything
 
         Returns
-        ----------
+        =======
         array_like: See superclass
 
         """
-        unsorted_idxs = np.argsort(np.argsort(x))
-        return super(UnsortedInterp2d, self).__call__(x, y, dx=dx, dy=dy, assume_sorted=False)[unsorted_idxs]
+        from scipy.interpolate.dfitpack import bispeu
+        x, y = self._sanitize_inputs(x, y)
+        out_of_bounds_x = (x < self.x_min) | (x > self.x_max)
+        out_of_bounds_y = (y < self.y_min) | (y > self.y_max)
+        bad = out_of_bounds_x | out_of_bounds_y
+        if isinstance(x, Number) and isinstance(y, Number):
+            if bad:
+                output = self.fill_value
+                ier = 0
+            else:
+                output, ier = bispeu(*self.tck, x, y)
+                output = float(output)
+        else:
+            output = np.empty_like(x)
+            output[bad] = self.fill_value
+            output[~bad], ier = bispeu(*self.tck, x[~bad], y[~bad])
+        if ier == 10:
+            raise ValueError("Invalid input data")
+        elif ier:
+            raise TypeError("An error occurred")
+        return output
+
+    @staticmethod
+    def _sanitize_inputs(x, y):
+        if isinstance(x, np.ndarray) and x.size == 1:
+            x = float(x)
+        if isinstance(y, np.ndarray) and y.size == 1:
+            y = float(y)
+        if isinstance(x, np.ndarray) and isinstance(y, np.ndarray):
+            if x.shape != y.shape:
+                raise ValueError(
+                    "UnsortedInterp2d received unequally shaped arrays"
+                )
+        elif isinstance(x, np.ndarray) and not isinstance(y, np.ndarray):
+            y = y * np.ones_like(x)
+        elif not isinstance(x, np.ndarray) and isinstance(y, np.ndarray):
+            x = x * np.ones_like(y)
+        return x, y
 
 
 #  Instantiate the default argument parser at runtime
@@ -1012,7 +1024,7 @@ def move_old_file(filename, overwrite=False):
     """ Moves or removes an old file.
 
     Parameters
-    ----------
+    ==========
     filename: str
         Name of the file to be move
     overwrite: bool, optional
@@ -1109,12 +1121,12 @@ def reflect(u):
     E.g., -0.9, 1.1, and 2.9 should all map to 0.9.
 
     Parameters
-    ----------
+    ==========
     u: array-like
         The array of points to map to the unit cube
 
     Returns
-    -------
+    =======
     u: array-like
        The input array, modified in place.
     """
@@ -1128,7 +1140,7 @@ def safe_file_dump(data, filename, module):
     """ Safely dump data to a .pickle file
 
     Parameters
-    ----------
+    ==========
     data:
         data to dump
     filename: str
@@ -1161,6 +1173,7 @@ def latex_plot_format(func):
     """
     @functools.wraps(func)
     def wrapper_decorator(*args, **kwargs):
+        import matplotlib.pyplot as plt
         from matplotlib import rcParams
 
         if "BILBY_STYLE" in kwargs:
@@ -1175,7 +1188,7 @@ def latex_plot_format(func):
 
         if bilby_mathdefault == 1:
             logger.debug("Setting mathdefault in the rcParams")
-            rcParams['text.latex.preamble'] = r'\newcommand{\mathdefault}[1][]{}'
+            rcParams['text.latex.preamble'] = r'\providecommand{\mathdefault}[1][]{}'
 
         logger.debug("Using BILBY_STYLE={}".format(bilby_style))
         if bilby_style.lower() == "none":
@@ -1228,12 +1241,12 @@ def kish_log_effective_sample_size(ln_weights):
     See https://en.wikipedia.org/wiki/Effective_sample_size for details
 
     Parameters
-    ----------
+    ==========
     ln_weights: array
         An array of the ln-weights
 
     Returns
-    -------
+    =======
     ln_n_eff:
         The natural-log of the effective sample size
 
@@ -1250,7 +1263,7 @@ def get_function_path(func):
 
 
 def loaded_modules_dict():
-    module_names = sys.modules.keys()
+    module_names = list(sys.modules.keys())
     vdict = {}
     for key in module_names:
         if "." not in key:
@@ -1267,3 +1280,167 @@ class tcolors:
     VALUE = '\033[91m'
     HIGHLIGHT = '\033[95m'
     END = '\033[0m'
+
+
+def decode_from_hdf5(item):
+    """
+    Decode an item from HDF5 format to python type.
+
+    This currently just converts __none__ to None and some arrays to lists
+
+    .. versionadded:: 1.0.0
+
+    Parameters
+    ----------
+    item: object
+        Item to be decoded
+
+    Returns
+    -------
+    output: object
+        Converted input item
+    """
+    if isinstance(item, str) and item == "__none__":
+        output = None
+    elif isinstance(item, bytes) and item == b"__none__":
+        output = None
+    elif isinstance(item, (bytes, bytearray)):
+        output = item.decode()
+    elif isinstance(item, np.ndarray):
+        if "|S" in str(item.dtype) or isinstance(item[0], bytes):
+            output = [it.decode() for it in item]
+        else:
+            output = item
+    else:
+        output = item
+    return output
+
+
+def encode_for_hdf5(item):
+    """
+    Encode an item to a HDF5 savable format.
+
+    .. versionadded:: 1.1.0
+
+    Parameters
+    ----------
+    item: object
+        Object to be encoded, specific options are provided for Bilby types
+
+    Returns
+    -------
+    output: object
+        Input item converted into HDF5 savable format
+    """
+    from .prior.dict import PriorDict
+    if isinstance(item, np.int_):
+        item = int(item)
+    elif isinstance(item, np.float_):
+        item = float(item)
+    elif isinstance(item, np.complex_):
+        item = complex(item)
+    if isinstance(item, (np.ndarray, int, float, complex, str, bytes)):
+        output = item
+    elif item is None:
+        output = "__none__"
+    elif isinstance(item, list):
+        if len(item) == 0:
+            output = item
+        elif isinstance(item[0], (str, bytes)) or item[0] is None:
+            output = list()
+            for value in item:
+                if isinstance(value, str):
+                    output.append(value.encode("utf-8"))
+                elif isinstance(value, bytes):
+                    output.append(value)
+                else:
+                    output.append(b"__none__")
+        elif isinstance(item[0], (int, float, complex)):
+            output = np.array(item)
+    elif isinstance(item, PriorDict):
+        output = json.dumps(item._get_json_dict())
+    elif isinstance(item, pd.DataFrame):
+        output = item.to_dict(orient="list")
+    elif isinstance(item, pd.Series):
+        output = item.to_dict()
+    elif inspect.isfunction(item) or inspect.isclass(item):
+        output = dict(__module__=item.__module__, __name__=item.__name__)
+    elif isinstance(item, dict):
+        output = item.copy()
+    else:
+        raise ValueError(f'Cannot save {type(item)} type')
+    return output
+
+
+def recursively_load_dict_contents_from_group(h5file, path):
+    """
+    Recursively load a HDF5 file into a dictionary
+
+    .. versionadded:: 1.1.0
+
+    Parameters
+    ----------
+    h5file: h5py.File
+        Open h5py file object
+    path: str
+        Path within the HDF5 file
+
+    Returns
+    -------
+    output: dict
+        The contents of the HDF5 file unpacked into the dictionary.
+    """
+    import h5py
+    output = dict()
+    for key, item in h5file[path].items():
+        if isinstance(item, h5py.Dataset):
+            output[key] = decode_from_hdf5(item[()])
+        elif isinstance(item, h5py.Group):
+            output[key] = recursively_load_dict_contents_from_group(h5file, path + key + '/')
+    return output
+
+
+def recursively_save_dict_contents_to_group(h5file, path, dic):
+    """
+    Recursively save a dictionary to a HDF5 group
+
+    .. versionadded:: 1.1.0
+
+    Parameters
+    ----------
+    h5file: h5py.File
+        Open HDF5 file
+    path: str
+        Path inside the HDF5 file
+    dic: dict
+        The dictionary containing the data
+    """
+    for key, item in dic.items():
+        item = encode_for_hdf5(item)
+        if isinstance(item, dict):
+            recursively_save_dict_contents_to_group(h5file, path + key + '/', item)
+        else:
+            h5file[path + key] = item
+
+
+def docstring(docstr, sep="\n"):
+    """
+    Decorator: Append to a function's docstring.
+
+    This is required for e.g., :code:`classmethods` as the :code:`__doc__`
+    can't be changed after.
+
+    Parameters
+    ==========
+    docstr: str
+        The docstring
+    sep: str
+        Separation character for appending the existing docstring.
+    """
+    def _decorator(func):
+        if func.__doc__ is None:
+            func.__doc__ = docstr
+        else:
+            func.__doc__ = sep.join([func.__doc__, docstr])
+        return func
+    return _decorator

@@ -1,18 +1,14 @@
-
-import os
-import datetime
 import copy
+import datetime
+import logging
+import os
 import signal
 import sys
 import time
-import dill
 from collections import namedtuple
-import logging
 
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-import scipy.signal
 
 from ..utils import logger, check_directory_exists_and_if_not_mkdir
 from .base_sampler import SamplerError, MCMCSampler
@@ -49,7 +45,7 @@ class Ptemcee(MCMCSampler):
     list commonly used kwargs and the bilby defaults.
 
     Parameters
-    ----------
+    ==========
     nsamples: int, (5000)
         The requested number of samples. Note, in cases where the
         autocorrelation parameter is difficult to measure, it is possible to
@@ -112,7 +108,7 @@ class Ptemcee(MCMCSampler):
 
 
     Other Parameters
-    ----------------
+    ------==========
     nwalkers: int, (200)
         The number of walkers
     nsteps: int, (100)
@@ -278,7 +274,7 @@ class Ptemcee(MCMCSampler):
         """ Draw the initial positions from the prior
 
         Returns
-        -------
+        =======
         pos0: list
             The initial postitions of the walkers, with shape (ntemps, nwalkers, ndim)
 
@@ -298,7 +294,7 @@ class Ptemcee(MCMCSampler):
         See pos0 in the class initialization for details.
 
         Returns
-        -------
+        =======
         pos0: list
             The initial postitions of the walkers, with shape (ntemps, nwalkers, ndim)
 
@@ -372,6 +368,7 @@ class Ptemcee(MCMCSampler):
         import ptemcee
 
         if os.path.isfile(self.resume_file) and self.resume is True:
+            import dill
             logger.info("Resume data {} found".format(self.resume_file))
             with open(self.resume_file, "rb") as file:
                 data = dill.load(file)
@@ -697,7 +694,7 @@ def check_iteration(
     """ Per-iteration logic to calculate the convergence check
 
     Parameters
-    ----------
+    ==========
     convergence_inputs: bilby.core.sampler.ptemcee.ConvergenceInputs
         A named tuple of the convergence checking inputs
     search_parameter_keys: list
@@ -706,7 +703,7 @@ def check_iteration(
         Lists used for tracking the run
 
     Returns
-    -------
+    =======
     stop: bool
         A boolean flag, True if the stoping criteria has been met
     burn: int
@@ -833,10 +830,12 @@ def check_iteration(
 
 
 def get_max_gradient(x, axis=0, window_length=11, polyorder=2, smooth=False):
+    from scipy.signal import savgol_filter
     if smooth:
-        x = scipy.signal.savgol_filter(
-            x, axis=axis, window_length=window_length, polyorder=3)
-    return np.max(scipy.signal.savgol_filter(
+        x = savgol_filter(
+            x, axis=axis, window_length=window_length, polyorder=3
+        )
+    return np.max(savgol_filter(
         x, axis=axis, window_length=window_length, polyorder=polyorder,
         deriv=1))
 
@@ -963,6 +962,7 @@ def checkpoint(
     Q_list,
     time_per_check,
 ):
+    import dill
     logger.info("Writing checkpoint and diagnostics")
     ndim = sampler.dim
 
@@ -1002,6 +1002,7 @@ def checkpoint(
 def plot_walkers(walkers, nburn, thin, parameter_labels, outdir, label,
                  discard=0):
     """ Method to plot the trace of the walkers in an ensemble MCMC plot """
+    import matplotlib.pyplot as plt
     nwalkers, nsteps, ndim = walkers.shape
     if np.isnan(nburn):
         nburn = nsteps
@@ -1053,6 +1054,7 @@ def plot_walkers(walkers, nburn, thin, parameter_labels, outdir, label,
 def plot_tau(
     tau_list_n, tau_list, search_parameter_keys, outdir, label, tau, autocorr_tau,
 ):
+    import matplotlib.pyplot as plt
     fig, ax = plt.subplots()
     for i, key in enumerate(search_parameter_keys):
         ax.plot(tau_list_n, np.array(tau_list)[:, i], label=key)
@@ -1065,6 +1067,7 @@ def plot_tau(
 
 
 def plot_mean_log_posterior(mean_log_posterior, outdir, label):
+    import matplotlib.pyplot as plt
 
     ntemps, nsteps = mean_log_posterior.shape
     ymax = np.max(mean_log_posterior)
@@ -1085,6 +1088,7 @@ def plot_mean_log_posterior(mean_log_posterior, outdir, label):
 def compute_evidence(sampler, log_likelihood_array, outdir, label, discard, nburn, thin,
                      iteration, make_plots=True):
     """ Computes the evidence using thermodynamic integration """
+    import matplotlib.pyplot as plt
     betas = sampler.betas
     # We compute the evidence without the burnin samples, but we do not thin
     lnlike = log_likelihood_array[:, :, discard + nburn : iteration]

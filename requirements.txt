@@ -1,10 +1,12 @@
 dynesty
 emcee
 corner
-numpy<1.20
-matplotlib>=2.0
+numpy
+matplotlib>=2.1
 scipy>=0.16
-pandas<1.2
+pandas
 mock
 dill
 tqdm
+h5py
+tables

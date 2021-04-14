@@ -24,8 +24,8 @@ class Pymultinest(NestedSampler):
     for that class for further help. Under Other Parameters, we list commonly
     used kwargs and the bilby defaults.
 
-    Other Parameters
-    ----------------
+    Parameters
+    ==========
     npoints: int
         The number of live points, note this can also equivalently be given as
         one of [nlive, nlives, n_live_points]
@@ -129,9 +129,9 @@ class Pymultinest(NestedSampler):
 
     def _apply_multinest_boundaries(self):
         if self.kwargs["wrapped_params"] is None:
-            self.kwargs["wrapped_params"] = []
-            for param, value in self.priors.items():
-                if value.boundary == "periodic":
+            self.kwargs["wrapped_params"] = list()
+            for param in self.search_parameter_keys:
+                if self.priors[param].boundary == "periodic":
                     self.kwargs["wrapped_params"].append(1)
                 else:
                     self.kwargs["wrapped_params"].append(0)

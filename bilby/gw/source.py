@@ -10,13 +10,6 @@ from .utils import (lalsim_GetApproximantFromString,
                     lalsim_SimInspiralWaveformParamsInsertTidalLambda2,
                     lalsim_SimInspiralChooseFDWaveformSequence)
 
-try:
-    import lal
-    import lalsimulation as lalsim
-except ImportError:
-    logger.debug("You do not have lalsuite installed currently. You will"
-                 " not be able to use some of the prebuilt functions.")
-
 
 def lal_binary_black_hole(
         frequency_array, mass_1, mass_2, luminosity_distance, a_1, tilt_1,
@@ -24,7 +17,7 @@ def lal_binary_black_hole(
     """ A Binary Black Hole waveform model using lalsimulation
 
     Parameters
-    ----------
+    ==========
     frequency_array: array_like
         The frequencies at which we want to calculate the strain
     mass_1: float
@@ -53,34 +46,35 @@ def lal_binary_black_hole(
     kwargs: dict
         Optional keyword arguments
         Supported arguments:
-            waveform_approximant
-            reference_frequency
-            minimum_frequency
-            maximum_frequency
-            catch_waveform_errors
-            pn_spin_order
-            pn_tidal_order
-            pn_phase_order
-            pn_amplitude_order
-            mode_array:
-                Activate a specific mode array and evaluate the model using those
-                modes only.  e.g. waveform_arguments =
-                dict(waveform_approximant='IMRPhenomHM', mode_array=[[2,2],[2,-2])
-                returns the 22 and 2-2 modes only of IMRPhenomHM.  You can only
-                specify modes that are included in that particular model.  e.g.
-                waveform_arguments = dict(waveform_approximant='IMRPhenomHM',
-                mode_array=[[2,2],[2,-2],[5,5],[5,-5]]) is not allowed because the
-                55 modes are not included in this model.  Be aware that some models
-                only take positive modes and return the positive and the negative
-                mode together, while others need to call both.  e.g.
-                waveform_arguments = dict(waveform_approximant='IMRPhenomHM',
-                mode_array=[[2,2],[4,-4]]) returns the 22 and 2-2 of IMRPhenomHM.
-                However, waveform_arguments =
-                dict(waveform_approximant='IMRPhenomXHM', mode_array=[[2,2],[4,-4]])
-                returns the 22 and 4-4 of IMRPhenomXHM.
+
+        - waveform_approximant
+        - reference_frequency
+        - minimum_frequency
+        - maximum_frequency
+        - catch_waveform_errors
+        - pn_spin_order
+        - pn_tidal_order
+        - pn_phase_order
+        - pn_amplitude_order
+        - mode_array:
+          Activate a specific mode array and evaluate the model using those
+          modes only.  e.g. waveform_arguments =
+          dict(waveform_approximant='IMRPhenomHM', mode_array=[[2,2],[2,-2])
+          returns the 22 and 2-2 modes only of IMRPhenomHM.  You can only
+          specify modes that are included in that particular model.  e.g.
+          waveform_arguments = dict(waveform_approximant='IMRPhenomHM',
+          mode_array=[[2,2],[2,-2],[5,5],[5,-5]]) is not allowed because the
+          55 modes are not included in this model.  Be aware that some models
+          only take positive modes and return the positive and the negative
+          mode together, while others need to call both.  e.g.
+          waveform_arguments = dict(waveform_approximant='IMRPhenomHM',
+          mode_array=[[2,2],[4,-4]]) returns the 22 and 2-2 of IMRPhenomHM.
+          However, waveform_arguments =
+          dict(waveform_approximant='IMRPhenomXHM', mode_array=[[2,2],[4,-4]])
+          returns the 22 and 4-4 of IMRPhenomXHM.
 
     Returns
-    -------
+    =======
     dict: A dictionary with the plus and cross polarisation strain modes
     """
     waveform_kwargs = dict(
@@ -103,7 +97,7 @@ def lal_binary_neutron_star(
     """ A Binary Neutron Star waveform model using lalsimulation
 
     Parameters
-    ----------
+    ==========
     frequency_array: array_like
         The frequencies at which we want to calculate the strain
     mass_1: float
@@ -136,34 +130,35 @@ def lal_binary_neutron_star(
     kwargs: dict
         Optional keyword arguments
         Supported arguments:
-            waveform_approximant
-            reference_frequency
-            minimum_frequency
-            maximum_frequency
-            catch_waveform_errors
-            pn_spin_order
-            pn_tidal_order
-            pn_phase_order
-            pn_amplitude_order
-            mode_array:
-                Activate a specific mode array and evaluate the model using those
-                modes only.  e.g. waveform_arguments =
-                dict(waveform_approximant='IMRPhenomHM', mode_array=[[2,2],[2,-2])
-                returns the 22 and 2-2 modes only of IMRPhenomHM.  You can only
-                specify modes that are included in that particular model.  e.g.
-                waveform_arguments = dict(waveform_approximant='IMRPhenomHM',
-                mode_array=[[2,2],[2,-2],[5,5],[5,-5]]) is not allowed because the
-                55 modes are not included in this model.  Be aware that some models
-                only take positive modes and return the positive and the negative
-                mode together, while others need to call both.  e.g.
-                waveform_arguments = dict(waveform_approximant='IMRPhenomHM',
-                mode_array=[[2,2],[4,-4]]) returns the 22 a\nd 2-2 of IMRPhenomHM.
-                However, waveform_arguments =
-                dict(waveform_approximant='IMRPhenomXHM', mode_array=[[2,2],[4,-4]])
-                returns the 22 and 4-4 of IMRPhenomXHM.
+
+        - waveform_approximant
+        - reference_frequency
+        - minimum_frequency
+        - maximum_frequency
+        - catch_waveform_errors
+        - pn_spin_order
+        - pn_tidal_order
+        - pn_phase_order
+        - pn_amplitude_order
+        - mode_array:
+          Activate a specific mode array and evaluate the model using those
+          modes only.  e.g. waveform_arguments =
+          dict(waveform_approximant='IMRPhenomHM', mode_array=[[2,2],[2,-2])
+          returns the 22 and 2-2 modes only of IMRPhenomHM.  You can only
+          specify modes that are included in that particular model.  e.g.
+          waveform_arguments = dict(waveform_approximant='IMRPhenomHM',
+          mode_array=[[2,2],[2,-2],[5,5],[5,-5]]) is not allowed because the
+          55 modes are not included in this model.  Be aware that some models
+          only take positive modes and return the positive and the negative
+          mode together, while others need to call both.  e.g.
+          waveform_arguments = dict(waveform_approximant='IMRPhenomHM',
+          mode_array=[[2,2],[4,-4]]) returns the 22 a\nd 2-2 of IMRPhenomHM.
+          However, waveform_arguments =
+          dict(waveform_approximant='IMRPhenomXHM', mode_array=[[2,2],[4,-4]])
+          returns the 22 and 4-4 of IMRPhenomXHM.
 
     Returns
-    -------
+    =======
     dict: A dictionary with the plus and cross polarisation strain modes
     """
     waveform_kwargs = dict(
@@ -185,7 +180,7 @@ def lal_eccentric_binary_black_hole_no_spins(
     """ Eccentric binary black hole waveform model using lalsimulation (EccentricFD)
 
     Parameters
-    ----------
+    ==========
     frequency_array: array_like
         The frequencies at which we want to calculate the strain
     mass_1: float
@@ -203,34 +198,35 @@ def lal_eccentric_binary_black_hole_no_spins(
     kwargs: dict
         Optional keyword arguments
         Supported arguments:
-            waveform_approximant
-            reference_frequency
-            minimum_frequency
-            maximum_frequency
-            catch_waveform_errors
-            pn_spin_order
-            pn_tidal_order
-            pn_phase_order
-            pn_amplitude_order
-            mode_array:
-                Activate a specific mode array and evaluate the model using those
-                modes only.  e.g. waveform_arguments =
-                dict(waveform_approximant='IMRPhenomHM', mode_array=[[2,2],[2,-2])
-                returns the 22 and 2-2 modes only of IMRPhenomHM.  You can only
-                specify modes that are included in that particular model.  e.g.
-                waveform_arguments = dict(waveform_approximant='IMRPhenomHM',
-                mode_array=[[2,2],[2,-2],[5,5],[5,-5]]) is not allowed because the
-                55 modes are not included in this model.  Be aware that some models
-                only take positive modes and return the positive and the negative
-                mode together, while others need to call both.  e.g.
-                waveform_arguments = dict(waveform_approximant='IMRPhenomHM',
-                mode_array=[[2,2],[4,-4]]) returns the 22 and 2-2 of IMRPhenomHM.
-                However, waveform_arguments =
-                dict(waveform_approximant='IMRPhenomXHM', mode_array=[[2,2],[4,-4]])
-                returns the 22 and 4-4 of IMRPhenomXHM.
+
+        - waveform_approximant
+        - reference_frequency
+        - minimum_frequency
+        - maximum_frequency
+        - catch_waveform_errors
+        - pn_spin_order
+        - pn_tidal_order
+        - pn_phase_order
+        - pn_amplitude_order
+        - mode_array:
+          Activate a specific mode array and evaluate the model using those
+          modes only.  e.g. waveform_arguments =
+          dict(waveform_approximant='IMRPhenomHM', mode_array=[[2,2],[2,-2])
+          returns the 22 and 2-2 modes only of IMRPhenomHM.  You can only
+          specify modes that are included in that particular model.  e.g.
+          waveform_arguments = dict(waveform_approximant='IMRPhenomHM',
+          mode_array=[[2,2],[2,-2],[5,5],[5,-5]]) is not allowed because the
+          55 modes are not included in this model.  Be aware that some models
+          only take positive modes and return the positive and the negative
+          mode together, while others need to call both.  e.g.
+          waveform_arguments = dict(waveform_approximant='IMRPhenomHM',
+          mode_array=[[2,2],[4,-4]]) returns the 22 and 2-2 of IMRPhenomHM.
+          However, waveform_arguments =
+          dict(waveform_approximant='IMRPhenomXHM', mode_array=[[2,2],[4,-4]])
+          returns the 22 and 4-4 of IMRPhenomXHM.
 
     Returns
-    -------
+    =======
     dict: A dictionary with the plus and cross polarisation strain modes
     """
     waveform_kwargs = dict(
@@ -252,7 +248,7 @@ def _base_lal_cbc_fd_waveform(
     """ Generate a cbc waveform model using lalsimulation
 
     Parameters
-    ----------
+    ==========
     frequency_array: array_like
         The frequencies at which we want to calculate the strain
     mass_1: float
@@ -287,9 +283,12 @@ def _base_lal_cbc_fd_waveform(
         Optional keyword arguments
 
     Returns
-    -------
+    =======
     dict: A dictionary with the plus and cross polarisation strain modes
     """
+    import lal
+    import lalsimulation as lalsim
+
     waveform_approximant = waveform_kwargs['waveform_approximant']
     reference_frequency = waveform_kwargs['reference_frequency']
     minimum_frequency = waveform_kwargs['minimum_frequency']
@@ -414,19 +413,6 @@ def _base_lal_cbc_fd_waveform(
     return dict(plus=h_plus, cross=h_cross)
 
 
-def roq(
-        frequency_array, mass_1, mass_2, luminosity_distance, a_1, tilt_1,
-        phi_12, a_2, tilt_2, phi_jl, theta_jn, phase, **waveform_arguments):
-    logger.warning(
-        'bilby.gw.source.roq has been deprecated and will be removed. Use '
-        'bilby.gw.source.binary_black_hole_roq instead.')
-    return binary_black_hole_roq(
-        frequency_array=frequency_array, mass_1=mass_1, mass_2=mass_2,
-        luminosity_distance=luminosity_distance, a_1=a_1, tilt_1=tilt_1,
-        phi_12=phi_12, a_2=a_2, tilt_2=tilt_2, phi_jl=phi_jl,
-        theta_jn=theta_jn, phase=phase, **waveform_arguments)
-
-
 def binary_black_hole_roq(
         frequency_array, mass_1, mass_2, luminosity_distance, a_1, tilt_1,
         phi_12, a_2, tilt_2, phi_jl, theta_jn, phase, **waveform_arguments):
@@ -462,7 +448,7 @@ def _base_roq_waveform(
     See https://git.ligo.org/lscsoft/lalsuite/blob/master/lalsimulation/src/LALSimInspiral.c#L1460
 
     Parameters
-    ----------
+    ==========
     frequency_array: np.array
         This input is ignored for the roq source model
     mass_1: float
@@ -489,7 +475,7 @@ def _base_roq_waveform(
         The phase at coalescence
 
     Waveform arguments
-    ------------------
+    ===================
     Non-sampled extra data used in the source model calculation
     frequency_nodes_linear: np.array
     frequency_nodes_quadratic: np.array
@@ -501,11 +487,12 @@ def _base_roq_waveform(
     loaded as `np.load(filename).T`.
 
     Returns
-    -------
+    =======
     waveform_polarizations: dict
         Dict containing plus and cross modes evaluated at the linear and
         quadratic frequency nodes.
     """
+    from lal import CreateDict
     frequency_nodes_linear = waveform_arguments['frequency_nodes_linear']
     frequency_nodes_quadratic = waveform_arguments['frequency_nodes_quadratic']
     reference_frequency = waveform_arguments['reference_frequency']
@@ -516,7 +503,7 @@ def _base_roq_waveform(
     mass_1 = mass_1 * utils.solar_mass
     mass_2 = mass_2 * utils.solar_mass
 
-    waveform_dictionary = lal.CreateDict()
+    waveform_dictionary = CreateDict()
     lalsim_SimInspiralWaveformParamsInsertTidalLambda1(
         waveform_dictionary, lambda_1)
     lalsim_SimInspiralWaveformParamsInsertTidalLambda2(

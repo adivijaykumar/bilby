@@ -6,13 +6,13 @@ from collections import OrderedDict
 import bilby
 from ..utils import command_line_args, logger, loaded_modules_dict
 from ..prior import PriorDict, DeltaFunction
-
 from .base_sampler import Sampler, SamplingMarginalisedParameterError
 from .cpnest import Cpnest
 from .dynamic_dynesty import DynamicDynesty
 from .dynesty import Dynesty
 from .emcee import Emcee
 from .kombine import Kombine
+from .nessai import Nessai
 from .nestle import Nestle
 from .polychord import PyPolyChord
 from .ptemcee import Ptemcee
@@ -26,10 +26,10 @@ from . import proposal
 
 IMPLEMENTED_SAMPLERS = {
     'cpnest': Cpnest, 'dnest4': DNest4, 'dynamic_dynesty': DynamicDynesty,
-    'dynesty': Dynesty, 'emcee': Emcee, 'kombine': Kombine, 'nestle': Nestle,
-    'ptemcee': Ptemcee, 'ptmcmcsampler': PTMCMCSampler, 'pymc3': Pymc3,
-    'pymultinest': Pymultinest, 'pypolychord': PyPolyChord, 'ultranest': Ultranest,
-    'fake_sampler': FakeSampler}
+    'dynesty': Dynesty, 'emcee': Emcee,'kombine': Kombine, 'nessai': Nessai,
+    'nestle': Nestle, 'ptemcee': Ptemcee, 'ptmcmcsampler': PTMCMCSampler,
+    'pymc3': Pymc3, 'pymultinest': Pymultinest, 'pypolychord': PyPolyChord,
+    'ultranest': Ultranest, 'fake_sampler': FakeSampler}
 
 if command_line_args.sampler_help:
     sampler = command_line_args.sampler_help
@@ -57,7 +57,7 @@ def run_sampler(likelihood, priors=None, label='label', outdir='outdir',
     The primary interface to easy parameter estimation
 
     Parameters
-    ----------
+    ==========
     likelihood: `bilby.Likelihood`
         A `Likelihood` instance
     priors: `bilby.PriorDict`
@@ -108,7 +108,7 @@ def run_sampler(likelihood, priors=None, label='label', outdir='outdir',
         All kwargs are passed directly to the samplers `run` function
 
     Returns
-    -------
+    =======
     result: bilby.core.result.Result
         An object containing the results
     """

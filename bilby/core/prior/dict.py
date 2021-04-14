@@ -1,15 +1,14 @@
-from importlib import import_module
-from io import open as ioopen
 import json
 import os
+from importlib import import_module
+from io import open as ioopen
 
-from matplotlib.cbook import flatten
 import numpy as np
 
-from bilby.core.prior.analytical import DeltaFunction
-from bilby.core.prior.base import Prior, Constraint
-from bilby.core.prior.joint import JointPrior
-from bilby.core.utils import logger, check_directory_exists_and_if_not_mkdir, BilbyJsonEncoder, decode_bilby_json
+from .analytical import DeltaFunction
+from .base import Prior, Constraint
+from .joint import JointPrior
+from ..utils import logger, check_directory_exists_and_if_not_mkdir, BilbyJsonEncoder, decode_bilby_json
 
 
 class PriorDict(dict):
@@ -18,7 +17,7 @@ class PriorDict(dict):
         """ A dictionary of priors
 
         Parameters
-        ----------
+        ==========
         dictionary: Union[dict, str, None]
             If given, a dictionary to generate the prior set.
         filename: Union[str, None]
@@ -60,12 +59,12 @@ class PriorDict(dict):
         Placeholder parameter conversion function.
 
         Parameters
-        ----------
+        ==========
         sample: dict
             Dictionary to convert
 
         Returns
-        -------
+        =======
         sample: dict
             Same as input
         """
@@ -75,7 +74,7 @@ class PriorDict(dict):
         """ Write the prior distribution to file.
 
         Parameters
-        ----------
+        ==========
         outdir: str
             output directory name
         label: str
@@ -123,18 +122,20 @@ class PriorDict(dict):
         """ Reads in a prior from a file specification
 
         Parameters
-        ----------
+        ==========
         filename: str
             Name of the file to be read in
 
         Notes
-        -----
+        =====
         Lines beginning with '#' or empty lines will be ignored.
         Priors can be loaded from:
-            bilby.core.prior as, e.g.,    foo = Uniform(minimum=0, maximum=1)
-            floats, e.g.,                 foo = 1
-            bilby.gw.prior as, e.g.,      foo = bilby.gw.prior.AlignedSpin()
-            other external modules, e.g., foo = my.module.CustomPrior(...)
+
+        - bilby.core.prior as, e.g.,    :code:`foo = Uniform(minimum=0, maximum=1)`
+        - floats, e.g.,                 :code:`foo = 1`
+        - bilby.gw.prior as, e.g.,      :code:`foo = bilby.gw.prior.AlignedSpin()`
+        - other external modules, e.g., :code:`foo = my.module.CustomPrior(...)`
+
         """
 
         comments = ['#', '\n']
@@ -153,7 +154,7 @@ class PriorDict(dict):
     @classmethod
     def _get_from_json_dict(cls, prior_dict):
         try:
-            cls == getattr(
+            cls = getattr(
                 import_module(prior_dict["__module__"]),
                 prior_dict["__name__"])
         except ImportError:
@@ -174,7 +175,7 @@ class PriorDict(dict):
         """ Reads in a prior from a json file
 
         Parameters
-        ----------
+        ==========
         filename: str
             Name of the file to be read in
         """
@@ -229,9 +230,19 @@ class PriorDict(dict):
                             "= {}. Error message {}".format(key, val, e)
                         )
             elif isinstance(val, dict):
-                logger.warning(
-                    'Cannot convert {} into a prior object. '
-                    'Leaving as dictionary.'.format(key))
+                try:
+                    _class = getattr(
+                        import_module(val.get("__module__", "none")),
+                        val.get("__name__", "none"))
+                    dictionary[key] = _class(**val.get("kwargs", dict()))
+                except ImportError:
+                    logger.debug("Cannot import prior module {}.{}".format(
+                        val.get("__module__", "none"), val.get("__name__", "none")
+                    ))
+                    logger.warning(
+                        'Cannot convert {} into a prior object. '
+                        'Leaving as dictionary.'.format(key))
+                    continue
             else:
                 raise TypeError(
                     "Unable to parse prior, bad entry: {} "
@@ -264,7 +275,7 @@ class PriorDict(dict):
         this will set-up default priors for those as well.
 
         Parameters
-        ----------
+        ==========
         likelihood: bilby.likelihood.GravitationalWaveTransient instance
             Used to infer the set of parameters to fill the prior with
         default_priors_file: str, optional
@@ -272,7 +283,7 @@ class PriorDict(dict):
 
 
         Returns
-        -------
+        =======
         prior: dict
             The filled prior dictionary
 
@@ -301,12 +312,12 @@ class PriorDict(dict):
         """Draw samples from the prior set
 
         Parameters
-        ----------
+        ==========
         size: int or tuple of ints, optional
             See numpy.random.uniform docs
 
         Returns
-        -------
+        =======
         dict: Dictionary of the samples
         """
         return self.sample_subset_constrained(keys=list(self.keys()), size=size)
@@ -315,14 +326,14 @@ class PriorDict(dict):
         """ Return an array of samples
 
         Parameters
-        ----------
+        ==========
         keys: list
             A list of keys to sample in
         size: int
             The number of samples to draw
 
         Returns
-        -------
+        =======
         array: array_like
             An array of shape (len(key), size) of the samples (ordered by keys)
         """
@@ -335,14 +346,14 @@ class PriorDict(dict):
         """Draw samples from the prior set for parameters which are not a DeltaFunction
 
         Parameters
-        ----------
+        ==========
         keys: list
             List of prior keys to draw samples from
         size: int or tuple of ints, optional
             See numpy.random.uniform docs
 
         Returns
-        -------
+        =======
         dict: Dictionary of the drawn samples
         """
         self.convert_floats_to_delta_functions()
@@ -407,14 +418,14 @@ class PriorDict(dict):
         """
 
         Parameters
-        ----------
+        ==========
         sample: dict
             Dictionary of the samples of which we want to have the probability of
         kwargs:
             The keyword arguments are passed directly to `np.product`
 
         Returns
-        -------
+        =======
         float: Joint probability of all individual sample probabilities
 
         """
@@ -440,14 +451,14 @@ class PriorDict(dict):
         """
 
         Parameters
-        ----------
+        ==========
         sample: dict
             Dictionary of the samples of which to calculate the log probability
         axis: None or int
             Axis along which the summation is performed
 
         Returns
-        -------
+        =======
         float or ndarray:
             Joint log probability of all the individual sample probabilities
 
@@ -474,16 +485,17 @@ class PriorDict(dict):
         """Rescale samples from unit cube to prior
 
         Parameters
-        ----------
+        ==========
         keys: list
             List of prior keys to be rescaled
         theta: list
             List of randomly drawn values on a unit cube associated with the prior keys
 
         Returns
-        -------
+        =======
         list: List of floats containing the rescaled sample
         """
+        from matplotlib.cbook import flatten
         return list(flatten([self[key].rescale(sample) for key, sample in zip(keys, theta)]))
 
     def test_redundancy(self, key, disable_logging=False):
@@ -494,8 +506,8 @@ class PriorDict(dict):
         """
         Test whether there are redundant keys in self.
 
-        Return
-        ------
+        Returns
+        =======
         bool: Whether there are redundancies or not
         """
         redundant = False
@@ -518,14 +530,6 @@ class PriorDict(dict):
         return self.__class__(dictionary=dict(self))
 
 
-class PriorSet(PriorDict):
-
-    def __init__(self, dictionary=None, filename=None):
-        """ DEPRECATED: USE PriorDict INSTEAD"""
-        logger.warning("The name 'PriorSet' is deprecated use 'PriorDict' instead")
-        super(PriorSet, self).__init__(dictionary, filename)
-
-
 class PriorDictException(Exception):
     """ General base class for all prior dict exceptions """
 
@@ -536,7 +540,7 @@ class ConditionalPriorDict(PriorDict):
         """
 
         Parameters
-        ----------
+        ==========
         dictionary: dict
             See parent class
         filename: str
@@ -615,12 +619,12 @@ class ConditionalPriorDict(PriorDict):
         """ Returns the required variables to sample a given conditional key.
 
         Parameters
-        ----------
+        ==========
         key : str
             Name of the key that we want to know the required variables for
 
         Returns
-        ----------
+        ==========
         dict: key/value pairs of the required variables
         """
         return {k: self[k].least_recently_sampled for k in getattr(self[key], 'required_variables', [])}
@@ -629,14 +633,14 @@ class ConditionalPriorDict(PriorDict):
         """
 
         Parameters
-        ----------
+        ==========
         sample: dict
             Dictionary of the samples of which we want to have the probability of
         kwargs:
             The keyword arguments are passed directly to `np.product`
 
         Returns
-        -------
+        =======
         float: Joint probability of all individual sample probabilities
 
         """
@@ -650,14 +654,14 @@ class ConditionalPriorDict(PriorDict):
         """
 
         Parameters
-        ----------
+        ==========
         sample: dict
             Dictionary of the samples of which we want to have the log probability of
         axis: Union[None, int]
             Axis along which the summation is performed
 
         Returns
-        -------
+        =======
         float: Joint log probability of all the individual sample probabilities
 
         """
@@ -671,14 +675,14 @@ class ConditionalPriorDict(PriorDict):
         """Rescale samples from unit cube to prior
 
         Parameters
-        ----------
+        ==========
         keys: list
             List of prior keys to be rescaled
         theta: list
             List of randomly drawn values on a unit cube associated with the prior keys
 
         Returns
-        -------
+        =======
         list: List of floats containing the rescaled sample
         """
         self._check_resolved()
@@ -774,14 +778,14 @@ def create_default_prior(name, default_priors_file=None):
     """Make a default prior for a parameter with a known name.
 
     Parameters
-    ----------
+    ==========
     name: str
         Parameter name
     default_priors_file: str, optional
         If given, a file containing the default priors.
 
-    Return
-    ------
+    Returns
+    ======
     prior: Prior
         Default prior distribution for that parameter, if unknown None is
         returned.

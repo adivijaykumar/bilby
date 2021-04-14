@@ -1,7 +1,9 @@
-from ..utils import logger
-import numpy as np
 import os
+
+import numpy as np
+
 from .emcee import Emcee
+from ..utils import logger
 
 
 class Kombine(Emcee):
@@ -12,8 +14,8 @@ class Kombine(Emcee):
     documentation for that class for further help. Under Other Parameters, we
     list commonly used kwargs and the bilby defaults.
 
-    Other Parameters
-    ----------------
+    Parameters
+    ==========
     nwalkers: int, (500)
         The number of walkers
     iterations: int, (100)
@@ -30,7 +32,6 @@ class Kombine(Emcee):
         autocorrelation time cannot be calculated
     burn_in_act: float (3.)
         The number of autocorrelation times to discard as burn-in
-
 
     """
 

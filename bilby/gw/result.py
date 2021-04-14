@@ -1,10 +1,7 @@
-
 import json
-import pickle
 import os
+import pickle
 
-import matplotlib.pyplot as plt
-from matplotlib import rcParams
 import numpy as np
 
 from ..core.result import Result as CoreResult
@@ -118,12 +115,12 @@ class CompactBinaryCoalescenceResult(CoreResult):
         properties.
 
         Parameters
-        ----------
+        ==========
         detector: str [H1, L1, V1]
             Detector name
 
         Returns
-        -------
+        =======
         injection_properties: dict
             A dictionary of the injection properties
 
@@ -143,12 +140,13 @@ class CompactBinaryCoalescenceResult(CoreResult):
         Plot is saved to {self.outdir}/{self.label}_calibration.{format}
 
         Parameters
-        ----------
+        ==========
         level: float
             Quantile for confidence levels, default=0.9, i.e., 90% interval
         format: str
             Format to save the plot, default=png, options are png/pdf
         """
+        import matplotlib.pyplot as plt
         if format not in ["png", "pdf"]:
             raise ValueError("Format should be one of png or pdf")
 
@@ -230,7 +228,7 @@ class CompactBinaryCoalescenceResult(CoreResult):
         If injection parameters can be found, the injection will be plotted.
 
         Parameters
-        ----------
+        ==========
         interferometers: (list, bilby.gw.detector.InterferometerList, optional)
         level: float, optional
             symmetric confidence interval to show, default is 90%
@@ -272,7 +270,7 @@ class CompactBinaryCoalescenceResult(CoreResult):
         If injection parameters can be found, the injection will be plotted.
 
         Parameters
-        ----------
+        ==========
         interferometer: (str, bilby.gw.detector.interferometer.Interferometer)
             detector to use, if an Interferometer object is passed the data
             will be overlaid on the posterior
@@ -296,7 +294,7 @@ class CompactBinaryCoalescenceResult(CoreResult):
             posterior. Default is 0.2
 
         Returns
-        -------
+        =======
         fig: figure-handle, only is save=False
 
         Notes
@@ -394,6 +392,8 @@ class CompactBinaryCoalescenceResult(CoreResult):
                 )
             )
         else:
+            import matplotlib.pyplot as plt
+            from matplotlib import rcParams
             old_font_size = rcParams["font.size"]
             rcParams["font.size"] = 20
             fig, axs = plt.subplots(
@@ -703,7 +703,7 @@ class CompactBinaryCoalescenceResult(CoreResult):
         required the installation of ligo.skymap.
 
         Parameters
-        ----------
+        ==========
         maxpts: int
             Maximum number of samples to use, if None all samples are used
         trials: int
@@ -734,6 +734,8 @@ class CompactBinaryCoalescenceResult(CoreResult):
             If true, load the cached pickle file (default name), or the
             pickle-file give as a path.
         """
+        import matplotlib.pyplot as plt
+        from matplotlib import rcParams
 
         try:
             from astropy.time import Time

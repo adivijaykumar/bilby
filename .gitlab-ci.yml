@@ -10,11 +10,13 @@
 # before the next stage begins
 
 stages:
+  - initial
   - test
+  - docs
   - deploy
 
 .test-python: &test-python
-  stage: test
+  stage: initial
   image: python
   before_script:
     # this is required because pytables doesn't use a wheel on py37
@@ -31,6 +33,7 @@ stages:
     - python -c "import bilby.gw.sampler"
     - python -c "import bilby.hyper"
     - python -c "import cli_bilby"
+    - python test/import_test.py
     - for script in $(pip show -f bilby | grep "bin\/" | xargs -I {} basename {}); do
           ${script} --help;
       done
@@ -43,6 +46,7 @@ basic-3.7:
 # test example on python 3.7
 python-3.7:
   stage: test
+  needs: ["basic-3.7", "precommits-py3.7"]
   image: quay.io/bilbydev/v2-dockerfile-test-suite-python37
   script:
     - python -m pip install .
@@ -55,20 +59,37 @@ python-3.7:
     - coverage html
     - coverage-badge -o coverage_badge.svg -f
 
+  artifacts:
+    paths:
+      - coverage_badge.svg
+      - htmlcov/
+
+docs:
+  stage: docs
+  needs: ["basic-3.7"]
+  image: quay.io/bilbydev/v2-dockerfile-test-suite-python37
+  script:
     # Make the documentation
+    - apt-get -yqq install pandoc
+    - python -m pip install .
     - cd docs
+    - pip install ipykernel ipython jupyter
+    - cp ../examples/tutorials/*.ipynb ./
+    - rm basic_ptmcmc_tutorial.ipynb
+    - rm compare_samplers.ipynb
+    - rm visualising_the_results.ipynb
+    - jupyter nbconvert --to notebook --execute *.ipynb --inplace
     - make clean
     - make html
 
   artifacts:
     paths:
-      - htmlcov/
-      - coverage_badge.svg
       - docs/_build/html/
 
 # test example on python 3.8
 python-3.8:
   stage: test
+  needs: ["basic-3.7", "precommits-py3.7"]
   image: quay.io/bilbydev/v2-dockerfile-test-suite-python38
   script:
     - python -m pip install .
@@ -78,6 +99,7 @@ python-3.8:
 # test example on python 3.6
 python-3.6:
   stage: test
+  needs: ["basic-3.7", "precommits-py3.7"]
   image: quay.io/bilbydev/v2-dockerfile-test-suite-python36
   script:
     - python -m pip install .
@@ -87,6 +109,7 @@ python-3.6:
 # test samplers on python 3.7
 python-3.7-samplers:
   stage: test
+  needs: ["basic-3.7", "precommits-py3.7"]
   image: quay.io/bilbydev/v2-dockerfile-test-suite-python37
   script:
     - python -m pip install .
@@ -97,6 +120,7 @@ python-3.7-samplers:
 # test samplers on python 3.6
 python-3.6-samplers:
   stage: test
+  needs: ["basic-3.7", "precommits-py3.7"]
   image: quay.io/bilbydev/v2-dockerfile-test-suite-python36
   script:
     - python -m pip install .
@@ -105,7 +129,7 @@ python-3.6-samplers:
 
 # Test containers are up to date
 containers:
-  stage: test
+  stage: initial
   image: quay.io/bilbydev/v2-dockerfile-test-suite-python37
   script:
     - cd containers
@@ -139,14 +163,16 @@ plotting:
     - pytest test/gw/plot_test.py
 
 authors:
-  stage: test
+  stage: initial
   image: quay.io/bilbydev/v2-dockerfile-test-suite-python37
   script:
     - python test/check_author_list.py
 
 pages:
   stage: deploy
+  needs: ["docs", "python-3.7"]
   dependencies:
+    - docs
     - python-3.7
   script:
     - mkdir public/
@@ -176,7 +202,7 @@ deploy_release:
 
 
 precommits-py3.7:
-  stage: test
+  stage: initial
   image: quay.io/bilbydev/v2-dockerfile-test-suite-python37
   script:
     - source activate python37

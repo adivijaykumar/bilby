@@ -23,7 +23,7 @@ class TestRunningSamplers(unittest.TestCase):
         )
 
         self.priors = bilby.core.prior.PriorDict()
-        self.priors["m"] = bilby.core.prior.Uniform(0, 5, boundary="reflective")
+        self.priors["m"] = bilby.core.prior.Uniform(0, 5, boundary="periodic")
         self.priors["c"] = bilby.core.prior.Uniform(-2, 2, boundary="reflective")
         bilby.core.utils.check_directory_exists_and_if_not_mkdir("outdir")
 
@@ -48,7 +48,12 @@ class TestRunningSamplers(unittest.TestCase):
             likelihood=self.likelihood,
             priors=self.priors,
             sampler="dnest4",
-            nlive=100,
+            max_num_levels=2,
+            num_steps=10,
+            new_level_interval=10,
+            num_per_step=10,
+            thread_steps=1,
+            num_particles=50,
             save=False,
         )
 
@@ -90,10 +95,10 @@ class TestRunningSamplers(unittest.TestCase):
             likelihood=self.likelihood,
             priors=self.priors,
             sampler="kombine",
-            iterations=1000,
-            nwalkers=100,
+            iterations=2000,
+            nwalkers=20,
             save=False,
-            autoburnin=True,
+            autoburnin=False,
         )
 
     def test_run_nestle(self):
@@ -147,7 +152,7 @@ class TestRunningSamplers(unittest.TestCase):
             sampler="pymc3",
             draws=50,
             tune=50,
-            n_init=1000,
+            n_init=250,
             save=False,
         )
 
@@ -182,6 +187,13 @@ class TestRunningSamplers(unittest.TestCase):
         _ = bilby.run_sampler(
             likelihood=self.likelihood, priors=self.priors,
             sampler='ultranest', save=False,
+        )
+
+    def test_run_bilby_mcmc(self):
+        _ = bilby.run_sampler(
+            likelihood=self.likelihood, priors=self.priors,
+            sampler="bilby_mcmc", nsamples=200, save=False,
+            printdt=1,
         )
 
 

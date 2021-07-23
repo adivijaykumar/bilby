@@ -40,7 +40,6 @@ class DeltaFunction(Prior):
         =======
         float: Rescaled probability, equivalent to peak
         """
-        self.test_valid_for_rescaling(val)
         return self.peak * val ** 0
 
     def prob(self, val):
@@ -105,7 +104,6 @@ class PowerLaw(Prior):
         =======
         Union[float, array_like]: Rescaled probability
         """
-        self.test_valid_for_rescaling(val)
         if self.alpha == -1:
             return self.minimum * np.exp(val * np.log(self.maximum / self.minimum))
         else:
@@ -148,8 +146,11 @@ class PowerLaw(Prior):
             normalising = (1 + self.alpha) / (self.maximum ** (1 + self.alpha) -
                                               self.minimum ** (1 + self.alpha))
 
-        return (self.alpha * np.nan_to_num(np.log(val)) + np.log(normalising)) + np.log(
-            1. * self.is_in_prior_range(val))
+        with np.errstate(divide='ignore', invalid='ignore'):
+            ln_in_range = np.log(1. * self.is_in_prior_range(val))
+            ln_p = self.alpha * np.nan_to_num(np.log(val)) + np.log(normalising)
+
+        return ln_p + ln_in_range
 
     def cdf(self, val):
         if self.alpha == -1:
@@ -203,7 +204,6 @@ class Uniform(Prior):
         =======
         Union[float, array_like]: Rescaled probability
         """
-        self.test_valid_for_rescaling(val)
         return self.minimum + val * (self.maximum - self.minimum)
 
     def prob(self, val):
@@ -311,7 +311,6 @@ class SymmetricLogUniform(Prior):
         =======
         Union[float, array_like]: Rescaled probability
         """
-        self.test_valid_for_rescaling(val)
         if isinstance(val, (float, int)):
             if val < 0.5:
                 return -self.maximum * np.exp(-2 * val * np.log(self.maximum / self.minimum))
@@ -398,7 +397,6 @@ class Cosine(Prior):
 
         This maps to the inverse CDF. This has been analytically solved for this case.
         """
-        self.test_valid_for_rescaling(val)
         norm = 1 / (np.sin(self.maximum) - np.sin(self.minimum))
         return np.arcsin(val / norm + np.sin(self.minimum))
 
@@ -453,7 +451,6 @@ class Sine(Prior):
 
         This maps to the inverse CDF. This has been analytically solved for this case.
         """
-        self.test_valid_for_rescaling(val)
         norm = 1 / (np.cos(self.minimum) - np.cos(self.maximum))
         return np.arccos(np.cos(self.minimum) - val / norm)
 
@@ -512,7 +509,6 @@ class Gaussian(Prior):
 
         This maps to the inverse CDF. This has been analytically solved for this case.
         """
-        self.test_valid_for_rescaling(val)
         return self.mu + erfinv(2 * val - 1) * 2 ** 0.5 * self.sigma
 
     def prob(self, val):
@@ -599,7 +595,6 @@ class TruncatedGaussian(Prior):
 
         This maps to the inverse CDF. This has been analytically solved for this case.
         """
-        self.test_valid_for_rescaling(val)
         return erfinv(2 * val * self.normalisation + erf(
             (self.minimum - self.mu) / 2 ** 0.5 / self.sigma)) * 2 ** 0.5 * self.sigma + self.mu
 
@@ -692,7 +687,6 @@ class LogNormal(Prior):
 
         This maps to the inverse CDF. This has been analytically solved for this case.
         """
-        self.test_valid_for_rescaling(val)
         return np.exp(self.mu + np.sqrt(2 * self.sigma ** 2) * erfinv(2 * val - 1))
 
     def prob(self, val):
@@ -713,7 +707,7 @@ class LogNormal(Prior):
                 _prob = np.exp(-(np.log(val) - self.mu) ** 2 / self.sigma ** 2 / 2)\
                     / np.sqrt(2 * np.pi) / val / self.sigma
         else:
-            _prob = np.zeros(len(val))
+            _prob = np.zeros(val.size)
             idx = (val > self.minimum)
             _prob[idx] = np.exp(-(np.log(val[idx]) - self.mu) ** 2 / self.sigma ** 2 / 2)\
                 / np.sqrt(2 * np.pi) / val[idx] / self.sigma
@@ -737,7 +731,7 @@ class LogNormal(Prior):
                 _ln_prob = -(np.log(val) - self.mu) ** 2 / self.sigma ** 2 / 2\
                     - np.log(np.sqrt(2 * np.pi) * val * self.sigma)
         else:
-            _ln_prob = -np.inf * np.ones(len(val))
+            _ln_prob = -np.inf * np.ones(val.size)
             idx = (val > self.minimum)
             _ln_prob[idx] = -(np.log(val[idx]) - self.mu) ** 2\
                 / self.sigma ** 2 / 2 - np.log(np.sqrt(2 * np.pi) * val[idx] * self.sigma)
@@ -750,7 +744,7 @@ class LogNormal(Prior):
             else:
                 _cdf = 0.5 + erf((np.log(val) - self.mu) / self.sigma / np.sqrt(2)) / 2
         else:
-            _cdf = np.zeros(len(val))
+            _cdf = np.zeros(val.size)
             _cdf[val > self.minimum] = 0.5 + erf((
                 np.log(val[val > self.minimum]) - self.mu) / self.sigma / np.sqrt(2)) / 2
         return _cdf
@@ -787,7 +781,6 @@ class Exponential(Prior):
 
         This maps to the inverse CDF. This has been analytically solved for this case.
         """
-        self.test_valid_for_rescaling(val)
         return -self.mu * log1p(-val)
 
     def prob(self, val):
@@ -807,7 +800,7 @@ class Exponential(Prior):
             else:
                 _prob = np.exp(-val / self.mu) / self.mu
         else:
-            _prob = np.zeros(len(val))
+            _prob = np.zeros(val.size)
             _prob[val >= self.minimum] = np.exp(-val[val >= self.minimum] / self.mu) / self.mu
         return _prob
 
@@ -828,7 +821,7 @@ class Exponential(Prior):
             else:
                 _ln_prob = -val / self.mu - np.log(self.mu)
         else:
-            _ln_prob = -np.inf * np.ones(len(val))
+            _ln_prob = -np.inf * np.ones(val.size)
             _ln_prob[val >= self.minimum] = -val[val >= self.minimum] / self.mu - np.log(self.mu)
         return _ln_prob
 
@@ -839,7 +832,7 @@ class Exponential(Prior):
             else:
                 _cdf = 1. - np.exp(-val / self.mu)
         else:
-            _cdf = np.zeros(len(val))
+            _cdf = np.zeros(val.size)
             _cdf[val >= self.minimum] = 1. - np.exp(-val[val >= self.minimum] / self.mu)
         return _cdf
 
@@ -884,7 +877,6 @@ class StudentT(Prior):
 
         This maps to the inverse CDF. This has been analytically solved for this case.
         """
-        self.test_valid_for_rescaling(val)
         if isinstance(val, (float, int)):
             if val == 0:
                 rescaled = -np.inf
@@ -974,7 +966,6 @@ class Beta(Prior):
 
         This maps to the inverse CDF. This has been analytically solved for this case.
         """
-        self.test_valid_for_rescaling(val)
         return btdtri(self.alpha, self.beta, val) * (self.maximum - self.minimum) + self.minimum
 
     def prob(self, val):
@@ -1010,7 +1001,7 @@ class Beta(Prior):
                 return _ln_prob
             return -np.inf
         else:
-            _ln_prob_sub = -np.inf * np.ones(len(val))
+            _ln_prob_sub = -np.inf * np.ones(val.size)
             idx = np.isfinite(_ln_prob) & (val >= self.minimum) & (val <= self.maximum)
             _ln_prob_sub[idx] = _ln_prob[idx]
             return _ln_prob_sub
@@ -1067,7 +1058,6 @@ class Logistic(Prior):
 
         This maps to the inverse CDF. This has been analytically solved for this case.
         """
-        self.test_valid_for_rescaling(val)
         if isinstance(val, (float, int)):
             if val == 0:
                 rescaled = -np.inf
@@ -1076,7 +1066,7 @@ class Logistic(Prior):
             else:
                 rescaled = self.mu + self.scale * np.log(val / (1. - val))
         else:
-            rescaled = np.inf * np.ones(len(val))
+            rescaled = np.inf * np.ones(val.size)
             rescaled[val == 0] = -np.inf
             rescaled[(val > 0) & (val < 1)] = self.mu + self.scale\
                 * np.log(val[(val > 0) & (val < 1)] / (1. - val[(val > 0) & (val < 1)]))
@@ -1148,7 +1138,6 @@ class Cauchy(Prior):
 
         This maps to the inverse CDF. This has been analytically solved for this case.
         """
-        self.test_valid_for_rescaling(val)
         rescaled = self.alpha + self.beta * np.tan(np.pi * (val - 0.5))
         if isinstance(val, (float, int)):
             if val == 1:
@@ -1230,7 +1219,6 @@ class Gamma(Prior):
 
         This maps to the inverse CDF. This has been analytically solved for this case.
         """
-        self.test_valid_for_rescaling(val)
         return gammaincinv(self.k, val) * self.theta
 
     def prob(self, val):
@@ -1263,7 +1251,7 @@ class Gamma(Prior):
             else:
                 _ln_prob = xlogy(self.k - 1, val) - val / self.theta - xlogy(self.k, self.theta) - gammaln(self.k)
         else:
-            _ln_prob = -np.inf * np.ones(len(val))
+            _ln_prob = -np.inf * np.ones(val.size)
             idx = (val >= self.minimum)
             _ln_prob[idx] = xlogy(self.k - 1, val[idx]) - val[idx] / self.theta\
                 - xlogy(self.k, self.theta) - gammaln(self.k)
@@ -1276,7 +1264,7 @@ class Gamma(Prior):
             else:
                 _cdf = gammainc(self.k, val / self.theta)
         else:
-            _cdf = np.zeros(len(val))
+            _cdf = np.zeros(val.size)
             _cdf[val >= self.minimum] = gammainc(self.k, val[val >= self.minimum] / self.theta)
         return _cdf
 
@@ -1382,8 +1370,6 @@ class FermiDirac(Prior):
         .. [1] M. Pitkin, M. Isi, J. Veitch & G. Woan, `arXiv:1705.08978v1
            <https:arxiv.org/abs/1705.08978v1>`_, 2017.
         """
-        self.test_valid_for_rescaling(val)
-
         inv = (-np.exp(-1. * self.r) + (1. + np.exp(self.r)) ** -val +
                np.exp(-1. * self.r) * (1. + np.exp(self.r)) ** -val)
 
@@ -1437,3 +1423,97 @@ class FermiDirac(Prior):
             idx = val >= self.minimum
             lnp[idx] = norm - np.logaddexp((val[idx] / self.sigma) - self.r, 0.)
             return lnp
+
+
+class Categorical(Prior):
+    def __init__(self, ncategories, name=None, latex_label=None,
+                 unit=None, boundary="periodic"):
+        """ An equal-weighted Categorical prior
+
+        Parameters:
+        -----------
+        ncategories: int
+            The number of available categories. The prior mass support is then
+            integers [0, ncategories - 1].
+        name: str
+            See superclass
+        latex_label: str
+            See superclass
+        unit: str
+            See superclass
+        """
+
+        minimum = 0
+        # Small delta added to help with MCMC walking
+        maximum = ncategories - 1 + 1e-15
+        super(Categorical, self).__init__(
+            name=name, latex_label=latex_label, minimum=minimum,
+            maximum=maximum, unit=unit, boundary=boundary)
+        self.ncategories = ncategories
+        self.categories = np.arange(self.minimum, self.maximum)
+        self.p = 1 / self.ncategories
+        self.lnp = -np.log(self.ncategories)
+
+    def rescale(self, val):
+        """
+        'Rescale' a sample from the unit line element to the categorical prior.
+
+        This maps to the inverse CDF. This has been analytically solved for this case.
+
+        Parameters
+        ==========
+        val: Union[float, int, array_like]
+            Uniform probability
+
+        Returns
+        =======
+        Union[float, array_like]: Rescaled probability
+        """
+        return np.floor(val * (1 + self.maximum))
+
+    def prob(self, val):
+        """Return the prior probability of val.
+
+        Parameters
+        ==========
+        val: Union[float, int, array_like]
+
+        Returns
+        =======
+        float: Prior probability of val
+        """
+        if isinstance(val, (float, int)):
+            if val in self.categories:
+                return self.p
+            else:
+                return 0
+        else:
+            val = np.atleast_1d(val)
+            probs = np.zeros_like(val, dtype=np.float64)
+            idxs = np.isin(val, self.categories)
+            probs[idxs] = self.p
+            return probs
+
+    def ln_prob(self, val):
+        """Return the logarithmic prior probability of val
+
+        Parameters
+        ==========
+        val: Union[float, int, array_like]
+
+        Returns
+        =======
+        float:
+
+        """
+        if isinstance(val, (float, int)):
+            if val in self.categories:
+                return self.lnp
+            else:
+                return -np.inf
+        else:
+            val = np.atleast_1d(val)
+            probs = -np.inf * np.ones_like(val, dtype=np.float64)
+            idxs = np.isin(val, self.categories)
+            probs[idxs] = self.lnp
+            return probs

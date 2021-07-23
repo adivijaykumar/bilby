@@ -185,7 +185,8 @@ class Prior(object):
         np.nan
 
         """
-        return np.log(self.prob(val))
+        with np.errstate(divide='ignore'):
+            return np.log(self.prob(val))
 
     def is_in_prior_range(self, val):
         """Returns True if val is in the prior boundaries, zero otherwise
@@ -200,23 +201,6 @@ class Prior(object):
 
         """
         return (val >= self.minimum) & (val <= self.maximum)
-
-    @staticmethod
-    def test_valid_for_rescaling(val):
-        """Test if 0 < val < 1
-
-        Parameters
-        ==========
-        val: Union[float, int, array_like]
-
-        Raises
-        =======
-        ValueError: If val is not between 0 and 1
-        """
-        valarray = np.atleast_1d(val)
-        tests = (valarray < 0) + (valarray > 1)
-        if np.any(tests):
-            raise ValueError("Number to be rescaled should be in [0, 1]")
 
     def __repr__(self):
         """Overrides the special method __repr__.
@@ -312,6 +296,10 @@ class Prior(object):
     @maximum.setter
     def maximum(self, maximum):
         self._maximum = maximum
+
+    @property
+    def width(self):
+        return self.maximum - self.minimum
 
     def get_instantiation_dict(self):
         subclass_args = infer_args_from_method(self.__init__)

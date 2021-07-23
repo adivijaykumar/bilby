@@ -154,19 +154,21 @@ class PriorDict(dict):
     @classmethod
     def _get_from_json_dict(cls, prior_dict):
         try:
-            cls = getattr(
+            class_ = getattr(
                 import_module(prior_dict["__module__"]),
                 prior_dict["__name__"])
         except ImportError:
             logger.debug("Cannot import prior module {}.{}".format(
                 prior_dict["__module__"], prior_dict["__name__"]
             ))
+            class_ = cls
         except KeyError:
             logger.debug("Cannot find module name to load")
+            class_ = cls
         for key in ["__module__", "__name__", "__prior_dict__"]:
             if key in prior_dict:
                 del prior_dict[key]
-        obj = cls(dict())
+        obj = class_(dict())
         obj.from_dictionary(prior_dict)
         return obj
 
@@ -206,7 +208,15 @@ class PriorDict(dict):
                     module = __name__.replace(
                         '.' + os.path.basename(__file__).replace('.py', ''), ''
                     )
-                cls = getattr(import_module(module), cls, cls)
+                try:
+                    cls = getattr(import_module(module), cls, cls)
+                except ModuleNotFoundError:
+                    logger.error(
+                        "Cannot import prior class {} for entry: {}={}".format(
+                            cls, key, val
+                        )
+                    )
+                    raise
                 if key.lower() in ["conversion_function", "condition_func"]:
                     setattr(self, key, cls)
                 elif isinstance(cls, str):
@@ -367,6 +377,28 @@ class PriorDict(dict):
                 logger.debug('{} not a known prior.'.format(key))
         return samples
 
+    @property
+    def non_fixed_keys(self):
+        keys = self.keys()
+        keys = [k for k in keys if isinstance(self[k], Prior)]
+        keys = [k for k in keys if self[k].is_fixed is False]
+        keys = [k for k in keys if k not in self.constraint_keys]
+        return keys
+
+    @property
+    def fixed_keys(self):
+        return [
+            k for k, p in self.items()
+            if (p.is_fixed and k not in self.constraint_keys)
+        ]
+
+    @property
+    def constraint_keys(self):
+        return [
+            k for k, p in self.items()
+            if isinstance(p, Constraint)
+        ]
+
     def sample_subset_constrained(self, keys=iter([]), size=None):
         if size is None or size == 1:
             while True:
@@ -432,6 +464,9 @@ class PriorDict(dict):
         prob = np.product([self[key].prob(sample[key])
                            for key in sample], **kwargs)
 
+        return self.check_prob(sample, prob)
+
+    def check_prob(self, sample, prob):
         ratio = self.normalize_constraint_factor(tuple(sample.keys()))
         if np.all(prob == 0.):
             return prob
@@ -465,7 +500,9 @@ class PriorDict(dict):
         """
         ln_prob = np.sum([self[key].ln_prob(sample[key])
                           for key in sample], axis=axis)
+        return self.check_ln_prob(sample, ln_prob)
 
+    def check_ln_prob(self, sample, ln_prob):
         ratio = self.normalize_constraint_factor(tuple(sample.keys()))
         if np.all(np.isinf(ln_prob)):
             return ln_prob
@@ -480,6 +517,21 @@ class PriorDict(dict):
                 keep = np.array(self.evaluate_constraints(sample), dtype=bool)
                 constrained_ln_prob[keep] = ln_prob[keep] + np.log(ratio)
                 return constrained_ln_prob
+
+    def cdf(self, sample):
+        """Evaluate the cumulative distribution function at the provided points
+
+        Parameters
+        ----------
+        sample: dict, pandas.DataFrame
+            Dictionary of the samples of which to calculate the CDF
+
+        Returns
+        -------
+        dict, pandas.DataFrame: Dictionary containing the CDF values
+
+        """
+        return sample.__class__({key: self[key].cdf(sample) for key, sample in sample.items()})
 
     def rescale(self, keys, theta):
         """Rescale samples from unit cube to prior
@@ -644,11 +696,10 @@ class ConditionalPriorDict(PriorDict):
         float: Joint probability of all individual sample probabilities
 
         """
-        self._check_resolved()
-        for key, value in sample.items():
-            self[key].least_recently_sampled = value
+        self._prepare_evaluation(*zip(*sample.items()))
         res = [self[key].prob(sample[key], **self.get_required_variables(key)) for key in sample]
-        return np.product(res, **kwargs)
+        prob = np.product(res, **kwargs)
+        return self.check_prob(sample, prob)
 
     def ln_prob(self, sample, axis=None):
         """
@@ -665,11 +716,15 @@ class ConditionalPriorDict(PriorDict):
         float: Joint log probability of all the individual sample probabilities
 
         """
-        self._check_resolved()
-        for key, value in sample.items():
-            self[key].least_recently_sampled = value
+        self._prepare_evaluation(*zip(*sample.items()))
         res = [self[key].ln_prob(sample[key], **self.get_required_variables(key)) for key in sample]
-        return np.sum(res, axis=axis)
+        ln_prob = np.sum(res, axis=axis)
+        return self.check_ln_prob(sample, ln_prob)
+
+    def cdf(self, sample):
+        self._prepare_evaluation(*zip(*sample.items()))
+        res = {key: self[key].cdf(sample[key], **self.get_required_variables(key)) for key in sample}
+        return sample.__class__(res)
 
     def rescale(self, keys, theta):
         """Rescale samples from unit cube to prior
@@ -685,18 +740,25 @@ class ConditionalPriorDict(PriorDict):
         =======
         list: List of floats containing the rescaled sample
         """
+        keys = list(keys)
+        theta = list(theta)
         self._check_resolved()
         self._update_rescale_keys(keys)
         result = dict()
         for key, index in zip(self.sorted_keys_without_fixed_parameters, self._rescale_indexes):
-            required_variables = {k: result[k] for k in getattr(self[key], 'required_variables', [])}
-            result[key] = self[key].rescale(theta[index], **required_variables)
+            result[key] = self[key].rescale(theta[index], **self.get_required_variables(key))
+            self[key].least_recently_sampled = result[key]
         return [result[key] for key in keys]
 
     def _update_rescale_keys(self, keys):
         if not keys == self._least_recently_rescaled_keys:
             self._rescale_indexes = [keys.index(element) for element in self.sorted_keys_without_fixed_parameters]
             self._least_recently_rescaled_keys = keys
+
+    def _prepare_evaluation(self, keys, theta):
+        self._check_resolved()
+        for key, value in zip(keys, theta):
+            self[key].least_recently_sampled = value
 
     def _check_resolved(self):
         if not self._resolved:

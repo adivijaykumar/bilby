@@ -20,6 +20,7 @@ from .conversion import (
     chirp_mass_and_mass_ratio_to_total_mass,
     total_mass_and_mass_ratio_to_component_masses)
 from .cosmology import get_cosmology
+from .source import PARAMETER_SETS
 
 
 DEFAULT_PRIOR_DIR = os.path.join(os.path.dirname(__file__), 'prior_files')
@@ -368,12 +369,21 @@ class UniformInComponentsMassRatio(Prior):
         return (self._integral(val) - self._integral(self.minimum)) / self.norm
 
     def rescale(self, val):
-        self.test_valid_for_rescaling(val)
-        return self.icdf(val)
+        resc = self.icdf(val)
+        if resc.ndim == 0:
+            return resc.item()
+        else:
+            return resc
 
     def prob(self, val):
         in_prior = (val >= self.minimum) & (val <= self.maximum)
-        return (1. + val)**(2. / 5.) / (val**(6. / 5.)) / self.norm * in_prior
+        with np.errstate(invalid="ignore"):
+            prob = (1. + val)**(2. / 5.) / (val**(6. / 5.)) / self.norm * in_prior
+        return prob
+
+    def ln_prob(self, val):
+        with np.errstate(divide="ignore"):
+            return np.log(self.prob(val))
 
 
 class AlignedSpin(Interped):
@@ -488,7 +498,8 @@ class ConditionalChiInPlane(ConditionalBasePrior):
         )
 
     def ln_prob(self, val, **required_variables):
-        return np.log(self.prob(val, **required_variables))
+        with np.errstate(divide="ignore"):
+            return np.log(self.prob(val, **required_variables))
 
     def cdf(self, val, **required_variables):
         r"""
@@ -539,9 +550,11 @@ class ConditionalChiInPlane(ConditionalBasePrior):
         return chi_aligned * ((self._reference_maximum / chi_aligned) ** (2 * val) - 1) ** 0.5
 
     def _condition_function(self, reference_params, **kwargs):
-        return dict(minimum=0, maximum=(
-            self._reference_maximum ** 2 - kwargs[self._required_variables[0]] ** 2
-        ) ** 0.5)
+        with np.errstate(invalid="ignore"):
+            maximum = np.sqrt(
+                self._reference_maximum ** 2 - kwargs[self._required_variables[0]] ** 2
+            )
+        return dict(minimum=0, maximum=maximum)
 
     def __repr__(self):
         return Prior.__repr__(self)
@@ -632,6 +645,43 @@ class CBCPriorDict(ConditionalPriorDict):
         else:
             logger.warning("Unable to determine minimum component mass")
             return None
+
+    def is_nonempty_intersection(self, pset):
+        """ Check if keys in self exist in the PARAMETER_SETS pset """
+        if len(PARAMETER_SETS[pset].intersection(self.non_fixed_keys)) > 0:
+            return True
+        else:
+            return False
+
+    @property
+    def spin(self):
+        """ Return true if priors include any spin parameters """
+        return self.is_nonempty_intersection("spin")
+
+    @property
+    def precession(self):
+        """ Return true if priors include any precession parameters """
+        return self.is_nonempty_intersection("precession_only")
+
+    @property
+    def intrinsic(self):
+        """ Return true if priors include any intrinsic parameters """
+        return self.is_nonempty_intersection("intrinsic")
+
+    @property
+    def extrinsic(self):
+        """ Return true if priors include any extrinsic parameters """
+        return self.is_nonempty_intersection("extrinsic")
+
+    @property
+    def mass(self):
+        """ Return true if priors include any mass parameters """
+        return self.is_nonempty_intersection("mass")
+
+    @property
+    def phase(self):
+        """ Return true if priors include phase parameters """
+        return self.is_nonempty_intersection("phase")
 
 
 class BBHPriorDict(CBCPriorDict):
@@ -827,6 +877,11 @@ class BNSPriorDict(CBCPriorDict):
                 redundant = True
         return redundant
 
+    @property
+    def tidal(self):
+        """ Return true if priors include phase parameters """
+        return self.is_nonempty_intersection("tidal")
+
 
 Prior._default_latex_labels = {
     'mass_1': '$m_1$',
@@ -853,12 +908,16 @@ Prior._default_latex_labels = {
     'psi': '$\psi$',
     'phase': '$\phi$',
     'geocent_time': '$t_c$',
+    'time_jitter': '$t_j$',
     'lambda_1': '$\\Lambda_1$',
     'lambda_2': '$\\Lambda_2$',
     'lambda_tilde': '$\\tilde{\\Lambda}$',
     'delta_lambda_tilde': '$\\delta\\tilde{\\Lambda}$',
     'chi_1': '$\\chi_1$',
-    'chi_2': '$\\chi_2$'}
+    'chi_2': '$\\chi_2$',
+    'chi_1_in_plane': '$\\chi_{1, \perp}$',
+    'chi_2_in_plane': '$\\chi_{2, \perp}$',
+}
 
 
 class CalibrationPriorDict(PriorDict):
@@ -898,7 +957,8 @@ class CalibrationPriorDict(PriorDict):
 
     @staticmethod
     def from_envelope_file(envelope_file, minimum_frequency,
-                           maximum_frequency, n_nodes, label):
+                           maximum_frequency, n_nodes, label,
+                           boundary="reflective"):
         """
         Load in the calibration envelope.
 
@@ -921,6 +981,8 @@ class CalibrationPriorDict(PriorDict):
             Number of nodes for the spline.
         label: str
             Label for the names of the parameters, e.g., `recalib_H1_`
+        bounadry: None, 'reflective', 'periodic'
+            The type of prior boundary to assign
 
         Returns
         =======
@@ -954,14 +1016,14 @@ class CalibrationPriorDict(PriorDict):
             prior[name] = Gaussian(mu=amplitude_mean_nodes[ii],
                                    sigma=amplitude_sigma_nodes[ii],
                                    name=name, latex_label=latex_label,
-                                   boundary='reflective')
+                                   boundary=boundary)
         for ii in range(n_nodes):
             name = "recalib_{}_phase_{}".format(label, ii)
             latex_label = "$\\phi^{}_{}$".format(label, ii)
             prior[name] = Gaussian(mu=phase_mean_nodes[ii],
                                    sigma=phase_sigma_nodes[ii],
                                    name=name, latex_label=latex_label,
-                                   boundary='reflective')
+                                   boundary=boundary)
         for ii in range(n_nodes):
             name = "recalib_{}_frequency_{}".format(label, ii)
             latex_label = "$f^{}_{}$".format(label, ii)
@@ -1378,7 +1440,7 @@ class HealPixMapPriorDist(BaseJointPriorDist):
             elif isinstance(self.__dict__[key], (np.ndarray, list)):
                 thisarr = np.asarray(self.__dict__[key])
                 otherarr = np.asarray(other.__dict__[key])
-                if thisarr.dtype == np.float and otherarr.dtype == np.float:
+                if thisarr.dtype == float and otherarr.dtype == float:
                     fin1 = np.isfinite(np.asarray(self.__dict__[key]))
                     fin2 = np.isfinite(np.asarray(other.__dict__[key]))
                     if not np.array_equal(fin1, fin2):

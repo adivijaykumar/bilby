@@ -13,6 +13,7 @@ from ..utils import (
     check_directory_exists_and_if_not_mkdir,
     reflect,
     safe_file_dump,
+    latex_plot_format,
 )
 from .base_sampler import Sampler, NestedSampler
 from ..result import rejection_sample
@@ -101,7 +102,9 @@ class Dynesty(NestedSampler):
         Method used to sample uniformly within the likelihood constraints,
         conditioned on the provided bounds
     walks: int
-        Number of walks taken if using `sample='rwalk'`, defaults to `ndim * 10`
+        Number of walks taken if using `sample='rwalk'`, defaults to `100`.
+        Note that the default `walks` in dynesty itself is 25, although using
+        `ndim * 10` can be a reasonable rule of thumb for new problems.
     dlogz: float, (0.1)
         Stopping criteria
     verbose: Bool
@@ -122,7 +125,7 @@ class Dynesty(NestedSampler):
     """
     default_kwargs = dict(bound='multi', sample='rwalk',
                           verbose=True, periodic=None, reflective=None,
-                          check_point_delta_t=600, nlive=1000,
+                          check_point_delta_t=1800, nlive=1000,
                           first_update=None, walks=100,
                           npdim=None, rstate=None, queue_size=1, pool=None,
                           use_pool=None, live_points=None,
@@ -212,7 +215,7 @@ class Dynesty(NestedSampler):
     def _verify_kwargs_against_default_kwargs(self):
         from tqdm.auto import tqdm
         if not self.kwargs['walks']:
-            self.kwargs['walks'] = self.ndim * 10
+            self.kwargs['walks'] = 100
         if not self.kwargs['update_interval']:
             self.kwargs['update_interval'] = int(0.6 * self.kwargs['nlive'])
         if self.kwargs['print_func'] is None:
@@ -324,7 +327,7 @@ class Dynesty(NestedSampler):
                 "Using the bilby-implemented rwalk sample method with ACT estimated walks")
             dynesty.dynesty._SAMPLING["rwalk"] = sample_rwalk_bilby
             dynesty.nestedsamplers._SAMPLING["rwalk"] = sample_rwalk_bilby
-            if self.kwargs.get("walks", 25) > self.kwargs.get("maxmcmc"):
+            if self.kwargs.get("walks") > self.kwargs.get("maxmcmc"):
                 raise DynestySetupError("You have maxmcmc > walks (minimum mcmc)")
             if self.kwargs.get("nact", 5) < 1:
                 raise DynestySetupError("Unable to run with nact < 1")
@@ -373,7 +376,6 @@ class Dynesty(NestedSampler):
             dill.dump(out, file)
 
         self._generate_result(out)
-        self.calc_likelihood_count()
         self.result.sampling_time = self.sampling_time
 
         if self.plot:
@@ -383,7 +385,9 @@ class Dynesty(NestedSampler):
 
     def _generate_result(self, out):
         import dynesty
-        weights = np.exp(out['logwt'] - out['logz'][-1])
+        from scipy.special import logsumexp
+        logwts = out["logwt"]
+        weights = np.exp(logwts - out['logz'][-1])
         nested_samples = DataFrame(
             out.samples, columns=self.search_parameter_keys)
         nested_samples['weights'] = weights
@@ -396,6 +400,16 @@ class Dynesty(NestedSampler):
         self.result.log_evidence = out.logz[-1]
         self.result.log_evidence_err = out.logzerr[-1]
         self.result.information_gain = out.information[-1]
+        self.result.num_likelihood_evaluations = getattr(self.sampler, 'ncall', 0)
+
+        logneff = logsumexp(logwts) * 2 - logsumexp(logwts * 2)
+        neffsamples = int(np.exp(logneff))
+        self.result.meta_data["run_statistics"] = dict(
+            nlikelihood=self.result.num_likelihood_evaluations,
+            neffsamples=neffsamples,
+            sampling_time_s=self.sampling_time.seconds,
+            ncores=self.kwargs.get("queue_size", 1)
+        )
 
     def _run_nested_wrapper(self, kwargs):
         """ Wrapper function to run_nested
@@ -616,6 +630,19 @@ class Dynesty(NestedSampler):
             finally:
                 plt.close("all")
             try:
+                filename = "{}/{}_checkpoint_trace_unit.png".format(self.outdir, self.label)
+                from copy import deepcopy
+                temp = deepcopy(self.sampler.results)
+                temp["samples"] = temp["samples_u"]
+                fig = dyplot.traceplot(temp, labels=labels)[0]
+                fig.tight_layout()
+                fig.savefig(filename)
+            except (RuntimeError, np.linalg.linalg.LinAlgError, ValueError, OverflowError, Exception) as e:
+                logger.warning(e)
+                logger.warning('Failed to create dynesty unit state plot at checkpoint')
+            finally:
+                plt.close("all")
+            try:
                 filename = "{}/{}_checkpoint_run.png".format(self.outdir, self.label)
                 fig, axs = dyplot.runplot(
                     self.sampler.results, logplot=False, use_math_text=False)
@@ -628,11 +655,7 @@ class Dynesty(NestedSampler):
                 plt.close('all')
             try:
                 filename = "{}/{}_checkpoint_stats.png".format(self.outdir, self.label)
-                fig, axs = plt.subplots(nrows=3, sharex=True)
-                for ax, name in zip(axs, ["boundidx", "nc", "scale"]):
-                    ax.plot(getattr(self.sampler, "saved_{}".format(name)), color="C0")
-                    ax.set_ylabel(name)
-                axs[-1].set_xlabel("iteration")
+                fig, axs = dynesty_stats_plot(self.sampler)
                 fig.tight_layout()
                 plt.savefig(filename)
             except (RuntimeError, ValueError) as e:
@@ -688,16 +711,6 @@ class Dynesty(NestedSampler):
         """
         return self.priors.rescale(self._search_parameter_keys, theta)
 
-    def calc_likelihood_count(self):
-        if self.likelihood_benchmark:
-            if hasattr(self, 'sampler'):
-                self.result.num_likelihood_evaluations = \
-                    getattr(self.sampler, 'ncall', 0)
-            else:
-                self.result.num_likelihood_evaluations = 0
-        else:
-            return None
-
 
 def sample_rwalk_bilby(args):
     """ Modified bilby-implemented version of dynesty.sampling.sample_rwalk """
@@ -715,8 +728,8 @@ def sample_rwalk_bilby(args):
 
     # Setup.
     n = len(u)
-    walks = kwargs.get('walks', 25)  # minimum number of steps
-    maxmcmc = kwargs.get('maxmcmc', 2000)  # Maximum number of steps
+    walks = kwargs.get('walks', 100)  # minimum number of steps
+    maxmcmc = kwargs.get('maxmcmc', 5000)  # Maximum number of steps
     nact = kwargs.get('nact', 5)  # Number of ACT
     old_act = kwargs.get('old_act', walks)
 
@@ -849,6 +862,73 @@ def estimate_nmcmc(accept_ratio, old_act, maxmcmc, safety=5, tau=None):
         )
         Nmcmc_exact = float(min(Nmcmc_exact, maxmcmc))
     return max(safety, int(Nmcmc_exact))
+
+
+@latex_plot_format
+def dynesty_stats_plot(sampler):
+    """
+    Plot diagnostic statistics from a dynesty run
+
+    The plotted quantities per iteration are:
+    - nc: the number of likelihood calls
+    - scale: the scale applied to the MCMC steps
+    - lifetime: the number of iterations a point stays in the live set
+
+    There is also a histogram of the lifetime compared with the theoretical
+    distribution. To avoid edge effects, we discard the first 6 * nlive
+
+    Parameters
+    ----------
+    sampler
+
+    Returns
+    -------
+    fig: matplotlib.pyplot.figure.Figure
+        Figure handle for the new plot
+    axs: matplotlib.pyplot.axes.Axes
+        Axes handles for the new plot
+
+    """
+    import matplotlib.pyplot as plt
+    from scipy.stats import geom, ks_1samp
+
+    fig, axs = plt.subplots(nrows=4, figsize=(8, 8))
+    for ax, name in zip(axs, ["nc", "scale"]):
+        ax.plot(getattr(sampler, "saved_{}".format(name)), color="blue")
+        ax.set_ylabel(name.title())
+    lifetimes = np.arange(len(sampler.saved_it)) - sampler.saved_it
+    axs[-2].set_ylabel("Lifetime")
+    nlive = sampler.nlive
+    burn = int(geom(p=1 / nlive).isf(1 / 2 / nlive))
+    if len(sampler.saved_it) > burn + sampler.nlive:
+        axs[-2].plot(np.arange(0, burn), lifetimes[:burn], color="grey")
+        axs[-2].plot(np.arange(burn, len(lifetimes) - nlive), lifetimes[burn: -nlive], color="blue")
+        axs[-2].plot(np.arange(len(lifetimes) - nlive, len(lifetimes)), lifetimes[-nlive:], color="red")
+        lifetimes = lifetimes[burn: -nlive]
+        ks_result = ks_1samp(lifetimes, geom(p=1 / nlive).cdf)
+        axs[-1].hist(
+            lifetimes,
+            bins=np.linspace(0, 6 * nlive, 60),
+            histtype="step",
+            density=True,
+            color="blue",
+            label=f"p value = {ks_result.pvalue:.3f}"
+        )
+        axs[-1].plot(
+            np.arange(1, 6 * nlive),
+            geom(p=1 / nlive).pmf(np.arange(1, 6 * nlive)),
+            color="red"
+        )
+        axs[-1].set_xlim(0, 6 * nlive)
+        axs[-1].legend()
+        axs[-1].set_yscale("log")
+    else:
+        axs[-2].plot(np.arange(0, len(lifetimes) - nlive), lifetimes[:-nlive], color="grey")
+        axs[-2].plot(np.arange(len(lifetimes) - nlive, len(lifetimes)), lifetimes[-nlive:], color="red")
+    axs[-2].set_yscale("log")
+    axs[-2].set_xlabel("Iteration")
+    axs[-1].set_xlabel("Lifetime")
+    return fig, axs
 
 
 class DynestySetupError(Exception):

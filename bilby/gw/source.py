@@ -387,8 +387,8 @@ def _base_lal_cbc_fd_waveform(
             else:
                 raise
 
-    h_plus = np.zeros_like(frequency_array, dtype=np.complex)
-    h_cross = np.zeros_like(frequency_array, dtype=np.complex)
+    h_plus = np.zeros_like(frequency_array, dtype=complex)
+    h_cross = np.zeros_like(frequency_array, dtype=complex)
 
     if len(hplus.data.data) > len(frequency_array):
         logger.debug("LALsim waveform longer than bilby's `frequency_array`" +
@@ -785,3 +785,38 @@ def supernova_pca_model(
                          pc_coeff4 * pc4 + pc_coeff5 * pc5)
 
     return {'plus': h_plus, 'cross': h_cross}
+
+
+precession_only = {
+    "tilt_1", "tilt_2", "phi_12", "phi_jl", "chi_1_in_plane", "chi_2_in_plane",
+}
+
+spin = {
+    "a_1", "a_2", "tilt_1", "tilt_2", "phi_12", "phi_jl", "chi_1", "chi_2",
+    "chi_1_in_plane", "chi_2_in_plane",
+}
+mass = {
+    "chirp_mass", "mass_ratio", "total_mass", "mass_1", "mass_2",
+    "symmetric_mass_ratio",
+}
+primary_spin_and_q = {
+    "a_1", "chi_1", "mass_ratio"
+}
+tidal = {
+    "lambda_1", "lambda_2", "lambda_tilde", "delta_lambda_tilde"
+}
+phase = {
+    "phase", "delta_phase",
+}
+extrinsic = {
+    "azimuth", "zenith", "luminosity_distance", "psi", "theta_jn",
+    "cos_theta_jn", "geocent_time", "time_jitter", "ra", "dec",
+    "H1_time", "L1_time", "V1_time",
+}
+
+PARAMETER_SETS = dict(
+    spin=spin, mass=mass, phase=phase, extrinsic=extrinsic,
+    tidal=tidal, primary_spin_and_q=primary_spin_and_q,
+    intrinsic=spin.union(mass).union(phase).union(tidal),
+    precession_only=precession_only,
+)

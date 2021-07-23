@@ -4,6 +4,7 @@ from math import fmod
 
 import numpy as np
 from scipy.interpolate import interp1d
+from scipy.special import i0e
 
 from ..core.utils import (ra_dec_to_theta_phi,
                           speed_of_light, logger, run_commandline,
@@ -74,8 +75,7 @@ def time_delay_geocentric(detector1, detector2, ra, dec, time):
     float: Time delay between the two detectors in the geocentric frame
 
     """
-    from lal import GreenwichMeanSiderealTime
-    gmst = fmod(GreenwichMeanSiderealTime(time), 2 * np.pi)
+    gmst = fmod(greenwich_mean_sidereal_time(time), 2 * np.pi)
     theta, phi = ra_dec_to_theta_phi(ra, dec, gmst)
     omega = np.array([np.sin(theta) * np.cos(phi), np.sin(theta) * np.sin(phi), np.cos(theta)])
     delta_d = detector2 - detector1
@@ -109,8 +109,7 @@ def get_polarization_tensor(ra, dec, time, psi, mode):
     array_like: A 3x3 representation of the polarization_tensor for the specified mode.
 
     """
-    from lal import GreenwichMeanSiderealTime
-    gmst = fmod(GreenwichMeanSiderealTime(time), 2 * np.pi)
+    gmst = fmod(greenwich_mean_sidereal_time(time), 2 * np.pi)
     theta, phi = ra_dec_to_theta_phi(ra, dec, gmst)
     u = np.array([np.cos(phi) * np.cos(theta), np.cos(theta) * np.sin(phi), -np.sin(theta)])
     v = np.array([-np.sin(phi), np.cos(phi), 0])
@@ -378,9 +377,8 @@ def zenith_azimuth_to_ra_dec(zenith, azimuth, geocent_time, ifos):
     ra, dec: float
         The zenith and azimuthal angles in the sky frame.
     """
-    from lal import GreenwichMeanSiderealTime
     theta, phi = zenith_azimuth_to_theta_phi(zenith, azimuth, ifos)
-    gmst = GreenwichMeanSiderealTime(geocent_time)
+    gmst = greenwich_mean_sidereal_time(geocent_time)
     ra, dec = theta_phi_to_ra_dec(theta, phi, gmst)
     ra = ra % (2 * np.pi)
     return ra, dec
@@ -986,33 +984,25 @@ def plot_spline_pos(log_freqs, samples, nfreqs=100, level=0.9, color='k', label=
     plt.xlim(freq_points.min() - .5, freq_points.max() + 50)
 
 
-class PropertyAccessor(object):
+def greenwich_mean_sidereal_time(time):
+    from lal import GreenwichMeanSiderealTime
+    time = float(time)
+    return GreenwichMeanSiderealTime(time)
+
+
+def ln_i0(value):
     """
-    Generic descriptor class that allows handy access of properties without long
-    boilerplate code. The properties of Interferometer are defined as instances
-    of this class.
+    A numerically stable method to evaluate ln(I_0) a modified Bessel function
+    of order 0 used in the phase-marginalized likelihood.
 
-    This avoids lengthy code like
+    Parameters
+    ==========
+    value: array-like
+        Value(s) at which to evaluate the function
 
-    .. code-block:: python
-
-        @property
-        def length(self):
-            return self.geometry.length
-
-        @length_setter
-        def length(self, length)
-            self.geometry.length = length
-
-    in the Interferometer class
+    Returns
+    =======
+    array-like:
+        The natural logarithm of the bessel function
     """
-
-    def __init__(self, container_instance_name, property_name):
-        self.property_name = property_name
-        self.container_instance_name = container_instance_name
-
-    def __get__(self, instance, owner):
-        return getattr(getattr(instance, self.container_instance_name), self.property_name)
-
-    def __set__(self, instance, value):
-        setattr(getattr(instance, self.container_instance_name), self.property_name, value)
+    return np.log(i0e(value)) + value

@@ -3,4 +3,7 @@ lalsuite
 gwpy
 theano
 plotly
+tables
 pyfftw
+scikit-learn
+nflows

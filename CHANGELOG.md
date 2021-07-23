@@ -1,5 +1,65 @@
 # All notable changes will be documented in this file
 
+## [1.1.3] 2021-07-02
+Version 1.1.3 release of bilby
+
+### Added
+- Added `Categorical` prior (!982)(!990)
+- Added a built-in mcmc sampler (`bilby_mcmc`) (!905)(!985)
+- Added run statistics to the `dynesty` meta data (!969)
+- Added `cdf` method to `PriorDict` classes (!943)
+
+### Changes
+- Removed the autoburnin causing `kombine` to fail the CI tests (!988)
+- Sped up the spline interpolation in ROQ (!971)
+- Replaced bessel interpolant to scipy function (!976)
+- Improved checkpoint stats plot (!977)
+- Fixed a typo in the sampler documentation (!986)
+- Fixed issue that causes ConditionalDeltaFunction posterior samples not to be saved correctly (!973)
+- Solved an issue where injected SNRs were logged incorrectly (!980)
+- Made Python 3.6+ a specific requirement (!978)
+- Fixed the calibration and time marginalized likelihood (!978)
+- Removed a possible error in the distance marginalization (!960)
+- Fixed an issue where `check_draw` did not catch `np.nan` values (!965)
+- Removed a superfluous line in the docs configuration file (!963)
+- Added a warning about class side effects to the `GravtiationalWaveTransient` likelihood classes (!964)
+- Allow `ptemcee` initialization with array (!955)
+- Removed `Prior.test_valid_for_rescaling` (!956)
+- Replaced deprecated numpy aliases builtins (!970)
+- Fixed a bug in the algorithm to determine time resolution of ROQ (!967)
+- Restructured utils module into several submodules. API remains backwards compatible (!873)
+- Changed number of default walks in `dynesty` from `10*self.ndim` to `100` (!961)
+
+## [1.1.2] 2021-05-05
+Version 1.1.2 release of bilby
+
+### Added
+- Added MCMC combine method and improved shuffle behaviour when combining results (!945)
+- Added an extras requires to enable downstream packages to depend on `bilby.gw` (!939)
+- Added a dynesty unit plot (!954)
+
+### Changes
+- Removed a number of deprecated functions and classes (!936)
+- Removed the pin on the numpy version (!934)
+- Added requirements to MANIFEST (!929)
+- Sped up the ROQ weight calculation with IFFT (!903)
+- Streamlined hdf5 improvements (!925)
+- Sped up `import bilby` by reducing internal imports (!933)
+- Reduced time required for the sampler tests (!949)
+- Resolved an unclear error message (!935)
+- Encapsulated GMST method in `gw.utils` (!947)
+- Improvements to `gw.utils` (!948)
+- Improvements to `core.prior` (!944)
+- Suppresses error message when creating injections (!938)
+- Fixed loading meta data, booleans, string lists with hdf5 (!941)
+- Made tables an optional requirement (!930)
+- Added `exists_ok` to `mkdir` calls (!946)
+- Increased the default dynesty checkpoint time to 30 minutes (!940)
+- Resolved issue with sampling from prior test (!950)
+- Added errstate ignore to the gw.conversion module (!952)
+- Fixed issues with pickle saving and loading (!932)
+- Fixed an issue with the `_base_roq_waveform` (!959)
+
 ## [1.1.1] 2021-03-16
 Version 1.1.1 release of bilby
 

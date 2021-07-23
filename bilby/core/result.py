@@ -20,8 +20,9 @@ from .utils import (
     decode_bilby_json, docstring,
     recursively_save_dict_contents_to_group,
     recursively_load_dict_contents_from_group,
+    recursively_decode_bilby_json,
 )
-from .prior import Prior, PriorDict, DeltaFunction
+from .prior import Prior, PriorDict, DeltaFunction, ConditionalDeltaFunction
 
 
 def result_file_name(outdir, label, extension='json', gzip=False):
@@ -34,7 +35,7 @@ def result_file_name(outdir, label, extension='json', gzip=False):
     label: str
         Naming scheme of the output file
     extension: str, optional
-        Whether to save as `hdf5` or `json`
+        Whether to save as `hdf5`, `json`, or `pickle`
     gzip: bool, optional
         Set to True to append `.gz` to the extension for saving in gzipped format
 
@@ -42,7 +43,9 @@ def result_file_name(outdir, label, extension='json', gzip=False):
     =======
     str: File name of the output file
     """
-    if extension in ['json', 'hdf5']:
+    if extension == 'pickle':
+        extension = 'pkl'
+    if extension in ['json', 'hdf5', 'pkl']:
         if extension == 'json' and gzip:
             return os.path.join(outdir, '{}_result.{}.gz'.format(label, extension))
         else:
@@ -323,7 +326,7 @@ class Result(object):
                  num_likelihood_evaluations=None, walkers=None,
                  max_autocorrelation_time=None, use_ratio=None,
                  parameter_labels=None, parameter_labels_with_unit=None,
-                 gzip=False, version=None):
+                 version=None):
         """ A class to store the results of the sampling run
 
         Parameters
@@ -369,8 +372,6 @@ class Result(object):
             likelihood was used during sampling
         parameter_labels, parameter_labels_with_unit: list
             Lists of the latex-formatted parameter labels
-        gzip: bool
-            Set to True to gzip the results file (if using json format)
         version: str,
             Version information for software used to generate the result. Note,
             this information is generated when the result object is initialized
@@ -561,6 +562,17 @@ class Result(object):
             return ''
 
     @property
+    def meta_data(self):
+        return self._meta_data
+
+    @meta_data.setter
+    def meta_data(self, meta_data):
+        if meta_data is None:
+            meta_data = dict()
+        meta_data = recursively_decode_bilby_json(meta_data)
+        self._meta_data = meta_data
+
+    @property
     def priors(self):
         if self._priors is not None:
             return self._priors
@@ -725,11 +737,11 @@ class Result(object):
             default=False
         outdir: str, optional
             Path to the outdir. Default is the one stored in the result object.
-        extension: str, optional {json, hdf5, True}
+        extension: str, optional {json, hdf5, pkl, pickle, True}
             Determines the method to use to store the data (if True defaults
             to json)
         gzip: bool, optional
-            If true, and outputing to a json file, this will gzip the resulting
+            If true, and outputting to a json file, this will gzip the resulting
             file and add '.gz' to the file extension.
         """
 
@@ -1387,7 +1399,8 @@ class Result(object):
         if priors is None:
             return posterior
         for key in priors:
-            if isinstance(priors[key], DeltaFunction):
+            if isinstance(priors[key], DeltaFunction) and \
+                    not isinstance(priors[key], ConditionalDeltaFunction):
                 posterior[key] = priors[key].peak
             elif isinstance(priors[key], float):
                 posterior[key] = priors[key]
@@ -1740,7 +1753,7 @@ class ResultList(list):
         else:
             raise TypeError("Could not append a non-Result type")
 
-    def combine(self):
+    def combine(self, shuffle=False):
         """
         Return the combined results in a :class:bilby.core.result.Result`
         object.
@@ -1763,11 +1776,20 @@ class ResultList(list):
         # check which kind of sampler was used: MCMC or Nested Sampling
         if result._nested_samples is not None:
             posteriors, result = self._combine_nested_sampled_runs(result)
+        elif result.sampler in ["bilby_mcmc", "bilbymcmc"]:
+            posteriors, result = self._combine_mcmc_sampled_runs(result)
         else:
             posteriors = [res.posterior for res in self]
 
         combined_posteriors = pd.concat(posteriors, ignore_index=True)
-        result.posterior = combined_posteriors.sample(len(combined_posteriors))  # shuffle
+
+        if shuffle:
+            result.posterior = combined_posteriors.sample(len(combined_posteriors))
+        else:
+            result.posterior = combined_posteriors
+
+        logger.info(f"Combined results have {len(result.posterior)} samples")
+
         return result
 
     def _combine_nested_sampled_runs(self, result):
@@ -1815,6 +1837,47 @@ class ResultList(list):
         # remove original nested_samples
         result.nested_samples = None
         result.sampler_kwargs = None
+        return posteriors, result
+
+    def _combine_mcmc_sampled_runs(self, result):
+        """
+        Combine multiple MCMC sampling runs.
+
+        Currently this keeps all posterior samples from each run
+
+        Parameters
+        ----------
+        result: bilby.core.result.Result
+            The result object to put the new samples in.
+
+        Returns
+        -------
+        posteriors: list
+            A list of pandas DataFrames containing the reduced sample set from
+            each run.
+        result: bilby.core.result.Result
+            The result object with the combined evidences.
+        """
+
+        from scipy.special import logsumexp
+
+        # Combine evidences
+        log_evidences = np.array([res.log_evidence for res in self])
+        result.log_evidence = logsumexp(log_evidences, b=1. / len(self))
+        result.log_bayes_factor = result.log_evidence - result.log_noise_evidence
+
+        # Propogate uncertainty in combined evidence
+        log_errs = [res.log_evidence_err for res in self if np.isfinite(res.log_evidence_err)]
+        if len(log_errs) > 0:
+            result.log_evidence_err = 0.5 * logsumexp(2 * np.array(log_errs), b=1. / len(self))
+        else:
+            result.log_evidence_err = np.nan
+
+        # Combined posteriors with a weighting
+        posteriors = list()
+        for res in self:
+            posteriors.append(res.posterior)
+
         return posteriors, result
 
     def check_nested_samples(self):

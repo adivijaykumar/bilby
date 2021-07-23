@@ -2216,7 +2216,7 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
             time_log_like = self.distance_marginalized_likelihood(
                 d_inner_h, h_inner_h)
         elif self.phase_marginalization:
-            time_log_like = (self._bessel_function_interped(abs(d_inner_h)) -
+            time_log_like = (ln_i0(abs(d_inner_h)) -
                              h_inner_h.real / 2)
         else:
             time_log_like = (d_inner_h.real - h_inner_h.real / 2)
@@ -2271,7 +2271,7 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
 
         if self.phase_marginalization:
             distance_log_like = (
-                self._bessel_function_interped(abs(d_inner_h_dist)) -
+                ln_i0(abs(d_inner_h_dist)) -
                 h_inner_h_dist.real / 2)
         else:
             distance_log_like = (d_inner_h_dist.real - h_inner_h_dist.real / 2)

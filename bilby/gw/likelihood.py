@@ -2452,26 +2452,16 @@ class RelativeBinningHMGravitationalWaveTransient(GravitationalWaveTransient):
         self.fiducial_waveform_obtained = False
         self.check_if_bins_are_setup = False
         self.fiducial_polarizations = None
-        self.per_detector_fiducial_waveforms = {}
+        
+        ## Don't need this dict in set_fiducial_waveform anymore. However, appears in time marginalisation.
+        #self.per_detector_fiducial_waveforms = {}
         self.per_detector_per_mode_fiducial_waveforms = {}
         self.bin_freqs = dict()
         self.bin_inds = dict()
 
-        self.ell = 2
-        self.emm = 2
-        self.set_fiducial_waveforms(self.fiducial_parameters)
-        logger.info("Initial fiducial waveforms for the [2,2] mode is  set up")
         self.setup_bins()
-        self.compute_summary_data()
-        logger.info("Summary Data Obtained for [2,2] mode")
-
-        for l,m in self.parameters['mode_array']:
-            self.ell = l
-            self.emm = m
-            self.set_fiducial_waveforms(self.fiducial_parameters)
-            logger.info("Initial fiducial waveforms for the [{},{}] mode is  set up".format(l,m))
-            self.compute_summary_data()
-            logger.info("Summary Data Obtained for [{},{}] mode".format(l,m))
+        self.set_fiducial_waveforms(self.fiducial_parameters, self.parameters['mode_array'])
+        logger.info("Initial fiducial waveform dictionary is set up")
 
         if update_fiducial_parameters:
             # write a check to make sure prior is not None
@@ -2522,34 +2512,30 @@ class RelativeBinningHMGravitationalWaveTransient(GravitationalWaveTransient):
             self.waveform_generator.waveform_arguments["frequency_bin_edges"] = self.bin_freqs[interferometer.name]
         return
 
-    def set_fiducial_waveforms(self, parameters):
+    def set_fiducial_waveforms(self, parameters, mode_array):
         parameters["fiducial"] = 1
-        parameters["mode_array"] = [[self.ell,self.emm]]
-        self.fiducial_polarizations = self.waveform_generator.frequency_domain_strain(
-            parameters)
-
-        maximum_nonzero_index = np.where(self.fiducial_polarizations["plus"] != 0j)[0][-1]
-        logger.info("Maximum Nonzero Index is {}".format(maximum_nonzero_index))
-        maximum_nonzero_frequency = self.waveform_generator.frequency_array[maximum_nonzero_index]
-        logger.info("Maximum Nonzero Frequency is {}".format(maximum_nonzero_frequency))
-
-        if self.fiducial_polarizations is None:
-            return np.nan_to_num(-np.inf)
-
         for interferometer in self.interferometers:
             logger.info("Maximum Frequency is {}".format(interferometer.maximum_frequency))
-            if interferometer.maximum_frequency > maximum_nonzero_frequency:
-                interferometer.maximum_frequency = maximum_nonzero_frequency
+            self.per_detector_per_mode_fiducial_waveforms[interferometer.name] = dict()
+            for l,m in more_array:
+                parameters["mode_array"] = [[l,m]]
+                self.fiducial_polarizations = self.waveform_generator.frequency_domain_strain(
+                parameters)
 
-            self.per_detector_fiducial_waveforms[interferometer.name] = (
-                interferometer.get_detector_response(
+                maximum_nonzero_index = np.where(self.fiducial_polarizations["plus"] != 0j)[0][-1]
+                logger.info("Maximum Nonzero Index is {}".format(maximum_nonzero_index))
+                maximum_nonzero_frequency = self.waveform_generator.frequency_array[maximum_nonzero_index]
+                logger.info("Maximum Nonzero Frequency is {}".format(maximum_nonzero_frequency))
+
+                if self.fiducial_polarizations is None:
+                    return np.nan_to_num(-np.inf)
+
+                if interferometer.maximum_frequency > maximum_nonzero_frequency:
+                    interferometer.maximum_frequency = maximum_nonzero_frequency
+
+                self.per_detector_per_mode_fiducial_waveforms[interferometer.name][l,m] = (
+                    interferometer.get_detector_response(
                     self.fiducial_polarizations, parameters))
-            
-            if self.ell == 2 and self.emm == 2:
-                self.per_detector_fiducial_waveforms[interferometer.name] = dict()
-            else: continue
-                self.per_detector_fiducial_waveforms[interferometer.name][self.ell,self.emm]  = self.per_detector_fiducial_waveforms[interferometer.name]
-
         parameters["fiducial"] = 0
         return
 
@@ -2638,11 +2624,9 @@ class RelativeBinningHMGravitationalWaveTransient(GravitationalWaveTransient):
         return bounds
 
     def compute_summary_data(self):
-        if self.ell == 2 and self.emm == 2:
-            summary_data = dict()
-        else: continue
-
+        summary_data = dict()
         for interferometer in self.interferometers:
+            summary_data[interferometer.name] = dict()
             mask = interferometer.frequency_mask
             masked_frequency_array = interferometer.frequency_array[mask]
             masked_bin_inds = []
@@ -2650,48 +2634,63 @@ class RelativeBinningHMGravitationalWaveTransient(GravitationalWaveTransient):
                 index = np.where(masked_frequency_array == edge)[0][0]
                 masked_bin_inds.append(index)
             masked_strain = interferometer.frequency_domain_strain[mask]
-            masked_h0 = self.per_detector_fiducial_waveforms[interferometer.name][mask]
             masked_psd = interferometer.power_spectral_density_array[mask]
-            a0, b0, a1, b1 = np.zeros((4, self.number_of_bins), dtype=np.complex)
+            for l,m in self.parameters["mode_array"]:
+                masked_h0 = self.per_detector_per_mode_fiducial_waveforms[interferometer.name][l,m][mask]
+                a0, b0, a1, b1 = np.zeros((4, self.number_of_bins), dtype=np.complex)
 
-            if self.ell == 2 and self.emm == 2:
-                summary_data[interferometer.name] = dict()
-            else: continue
+                for i in range(self.number_of_bins):
 
-            for i in range(self.number_of_bins):
+                    central_frequency_i = 0.5 * \
+                        (masked_frequency_array[masked_bin_inds[i]] + masked_frequency_array[masked_bin_inds[i + 1]])
+                    masked_strain_i = masked_strain[masked_bin_inds[i]:masked_bin_inds[i + 1]]
+                    masked_h0_i = masked_h0[masked_bin_inds[i]:masked_bin_inds[i + 1]]
+                    masked_psd_i = masked_psd[masked_bin_inds[i]:masked_bin_inds[i + 1]]
+                    masked_frequency_i = masked_frequency_array[masked_bin_inds[i]:masked_bin_inds[i + 1]]
 
-                central_frequency_i = 0.5 * \
-                    (masked_frequency_array[masked_bin_inds[i]] + masked_frequency_array[masked_bin_inds[i + 1]])
-                masked_strain_i = masked_strain[masked_bin_inds[i]:masked_bin_inds[i + 1]]
-                masked_h0_i = masked_h0[masked_bin_inds[i]:masked_bin_inds[i + 1]]
-                masked_psd_i = masked_psd[masked_bin_inds[i]:masked_bin_inds[i + 1]]
-                masked_frequency_i = masked_frequency_array[masked_bin_inds[i]:masked_bin_inds[i + 1]]
+                    a0[i] = noise_weighted_inner_product(
+                        masked_h0_i,
+                        masked_strain_i,
+                        masked_psd_i,
+                        self.waveform_generator.duration)
 
-                a0[i] = noise_weighted_inner_product(
-                    masked_h0_i,
-                    masked_strain_i,
-                    masked_psd_i,
-                    self.waveform_generator.duration)
+                    a1[i] = noise_weighted_inner_product(
+                        masked_h0_i,
+                        masked_strain_i * (masked_frequency_i - central_frequency_i),
+                        masked_psd_i,
+                        self.waveform_generator.duration)
 
-                b0[i] = noise_weighted_inner_product(
-                    masked_h0_i,
-                    masked_h0_i,
-                    masked_psd_i,
-                    self.waveform_generator.duration)
+                summary_data[interferometer.name][l,m] = dict(a0=a0, a1=a1)
 
-                a1[i] = noise_weighted_inner_product(
-                    masked_h0_i,
-                    masked_strain_i * (masked_frequency_i - central_frequency_i),
-                    masked_psd_i,
-                    self.waveform_generator.duration)
+                mode_array_temp = self.parameters["mode_array"].copy()
+                for ell,emm in mode_array_temp:
+                    masked_h02 = self.per_detector_per_mode_fiducial_waveforms[interferometer.name][ell,emm][mask]
 
-                b1[i] = noise_weighted_inner_product(
-                    masked_h0_i,
-                    masked_h0_i * (masked_frequency_i - central_frequency_i),
-                    masked_psd_i,
-                    self.waveform_generator.duration)
+                    for i in range(self.number_of_bins):
+                        central_frequency_i = 0.5 * \
+                            (masked_frequency_array[masked_bin_inds[i]] + masked_frequency_array[masked_bin_inds[i + 1]])
+                        masked_h0_i = masked_h0[masked_bin_inds[i]:masked_bin_inds[i + 1]]
+                        masked_h02_i = masked_h02[masked_bin_inds[i]:masked_bin_inds[i + 1]]
+                        masked_psd_i = masked_psd[masked_bin_inds[i]:masked_bin_inds[i + 1]]
+                        masked_frequency_i = masked_frequency_array[masked_bin_inds[i]:masked_bin_inds[i + 1]]
 
-            summary_data[interferometer.name][self.ell,self.emm] = dict(a0=a0, a1=a1, b0=b0, b1=b1)
+                        b0[i] = noise_weighted_inner_product(
+                            masked_h0_i,
+                            masked_h02_i,
+                            masked_psd_i,
+                            self.waveform_generator.duration)
+    
+                        b1[i] = noise_weighted_inner_product(
+                            masked_h0_i,
+                            masked_h02_i * (masked_frequency_i - central_frequency_i),
+                            masked_psd_i,
+                            self.waveform_generator.duration)
+
+
+                    summary_data[interferometer.name][l,m][ell,emm] = dict(b0=b0, b1=b1)
+                    if not (l == ell and m == emm): summary_data[interferometer.name][ell,emm][l,m] = dict(b0=np.conjugate(b0), b1=np.conjugate(b1))
+
+                mode_array_temp.remove([l,m])
 
         self.summary_data = summary_data
 
@@ -2724,14 +2723,19 @@ class RelativeBinningHMGravitationalWaveTransient(GravitationalWaveTransient):
         for l,m in self.parameters['mode_array']:
             a0 = summary_data_per_interferometer[l,m]["a0"]
             a1 = summary_data_per_interferometer[l,m]["a1"]
-            b0 = summary_data_per_interferometer[l,m]["b0"]
-            b1 = summary_data_per_interferometer[l,m]["b1"]
 
             r0, r1 = waveform_ratio_per_detector[l,m]
-
+            
+            ### Using eqn 22a from Leslie et al
             d_inner_h_lm = np.sum(a0 * np.conjugate(r0) + a1 * np.conjugate(r1))
-            h_inner_h_lm = np.sum(b0 * np.abs(r0) ** 2 + 2 * b1 * np.real(
-                r0 * np.conjugate(r1)))
+            h_inner_h_lm = 0
+            for ell, emm in self.parameters['mode_array']:
+                b0 = summary_data_per_interferometer[l,m][ell,emm]["b0"]
+                b1 = summary_data_per_interferometer[l,m][ell,emm]["b1"]
+                r0_ellemm, r1_ellemm = waveform_ratio_per_detector[ell,emm]
+                ### Using 22b from Leslie et al
+                h_inner_h_lm += np.sum(b0 * r0 * np.conjugate(r0_ellemm)  +  b1 * (r0 * np.conjugate(r1_ellemm)
+                             + np.conjugate(r0_ellemm) * r1))
             d_inner_h += d_inner_h_lm
             h_inner_h += h_inner_h_lm
         optimal_snr_squared = h_inner_h

@@ -2431,9 +2431,10 @@ class RelativeBinningHMGravitationalWaveTransient(GravitationalWaveTransient):
                  reference_frame="sky",
                  time_reference="geocenter",
                  chi=1,
+                 mode_array=[[2,2]],
                  epsilon=0.5):
 
-        super(RelativeBinningGravitationalWaveTransient, self).__init__(
+        super(RelativeBinningHMGravitationalWaveTransient, self).__init__(
             interferometers=interferometers,
             waveform_generator=waveform_generator,
             distance_marginalization=distance_marginalization,
@@ -2446,6 +2447,7 @@ class RelativeBinningHMGravitationalWaveTransient(GravitationalWaveTransient):
             time_reference=time_reference)
 
         self.fiducial_parameters = fiducial_parameters
+        self.mode_array = mode_array
         self.chi = chi
         self.epsilon = epsilon
         self.gamma = np.array([-5 / 3, -2 / 3, 1, 5 / 3, 7 / 3])
@@ -2460,8 +2462,10 @@ class RelativeBinningHMGravitationalWaveTransient(GravitationalWaveTransient):
         self.bin_inds = dict()
 
         self.setup_bins()
-        self.set_fiducial_waveforms(self.fiducial_parameters, self.parameters['mode_array'])
+        self.set_fiducial_waveforms(self.fiducial_parameters, self.mode_array)
         logger.info("Initial fiducial waveform dictionary is set up")
+        self.compute_summary_data()
+        logger.info("Summary Data Obtained")
 
         if update_fiducial_parameters:
             # write a check to make sure prior is not None
@@ -2517,7 +2521,7 @@ class RelativeBinningHMGravitationalWaveTransient(GravitationalWaveTransient):
         for interferometer in self.interferometers:
             logger.info("Maximum Frequency is {}".format(interferometer.maximum_frequency))
             self.per_detector_per_mode_fiducial_waveforms[interferometer.name] = dict()
-            for l,m in more_array:
+            for l,m in self.mode_array:
                 parameters["mode_array"] = [[l,m]]
                 self.fiducial_polarizations = self.waveform_generator.frequency_domain_strain(
                 parameters)
@@ -2635,7 +2639,10 @@ class RelativeBinningHMGravitationalWaveTransient(GravitationalWaveTransient):
                 masked_bin_inds.append(index)
             masked_strain = interferometer.frequency_domain_strain[mask]
             masked_psd = interferometer.power_spectral_density_array[mask]
-            for l,m in self.parameters["mode_array"]:
+            for l,m, in self.mode_array:
+                summary_data[interferometer.name][l,m] = dict()
+
+            for l,m in self.mode_array:
                 masked_h0 = self.per_detector_per_mode_fiducial_waveforms[interferometer.name][l,m][mask]
                 a0, b0, a1, b1 = np.zeros((4, self.number_of_bins), dtype=np.complex)
 
@@ -2662,7 +2669,7 @@ class RelativeBinningHMGravitationalWaveTransient(GravitationalWaveTransient):
 
                 summary_data[interferometer.name][l,m] = dict(a0=a0, a1=a1)
 
-                mode_array_temp = self.parameters["mode_array"].copy()
+                mode_array_temp = self.mode_array.copy()
                 for ell,emm in mode_array_temp:
                     masked_h02 = self.per_detector_per_mode_fiducial_waveforms[interferometer.name][ell,emm][mask]
 
@@ -2696,10 +2703,9 @@ class RelativeBinningHMGravitationalWaveTransient(GravitationalWaveTransient):
 
     def compute_waveform_ratio(self, parameters):
         waveform_ratio = dict()
-        mode_array = parameters['mode_array']
         for interferometer in self.interferometers:
             waveform_ratio[interferometer.name] = dict()
-            for l,m in mode_array:
+            for l,m in self.mode_array:
                 parameters['mode_array'] = [[l,m]]
                 self.waveform_generator.parameters = parameters
                 new_polarizations = self.waveform_generator.frequency_domain_strain(parameters)
@@ -2713,14 +2719,14 @@ class RelativeBinningHMGravitationalWaveTransient(GravitationalWaveTransient):
                     self.bin_freqs[interferometer.name][1:] - self.bin_freqs[interferometer.name][:-1])
 
                 waveform_ratio[interferometer.name][l,m] = [r0, r1]
-        parameters['mode_array'] = mode_array
+        parameters['mode_array'] = self.mode_array
         return waveform_ratio
 
     def calculate_snrs_relative_binning(self, waveform_ratio_per_detector, interferometer):
         summary_data_per_interferometer = self.summary_data[interferometer.name]
         d_inner_h = 0
         h_inner_h = 0
-        for l,m in self.parameters['mode_array']:
+        for l,m in self.mode_array:
             a0 = summary_data_per_interferometer[l,m]["a0"]
             a1 = summary_data_per_interferometer[l,m]["a1"]
 
@@ -2729,7 +2735,7 @@ class RelativeBinningHMGravitationalWaveTransient(GravitationalWaveTransient):
             ### Using eqn 22a from Leslie et al
             d_inner_h_lm = np.sum(a0 * np.conjugate(r0) + a1 * np.conjugate(r1))
             h_inner_h_lm = 0
-            for ell, emm in self.parameters['mode_array']:
+            for ell, emm in self.mode_array:
                 b0 = summary_data_per_interferometer[l,m][ell,emm]["b0"]
                 b1 = summary_data_per_interferometer[l,m][ell,emm]["b1"]
                 r0_ellemm, r1_ellemm = waveform_ratio_per_detector[ell,emm]
@@ -2944,8 +2950,9 @@ class RelativeBinningHMGravitationalWaveTransient(GravitationalWaveTransient):
 
     def _rescale_signal(self, waveform_ratio, new_distance):
         for ifo in self.interferometers:
-            for i in range(2):
-                waveform_ratio[ifo.name][i] *= self._ref_dist / new_distance
+            for l,m in self.mode_array:
+                for i in range(2):
+                    waveform_ratio[ifo.name][l,m][i] *= self._ref_dist / new_distance
 
     def _calculate_inner_products(self, waveform_ratio):
         d_inner_h = 0

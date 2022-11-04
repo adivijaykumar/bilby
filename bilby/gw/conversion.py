@@ -1135,17 +1135,17 @@ def compute_snrs(sample, likelihood):
 
     """
     if likelihood is not None:
-        if likelihood.__class__.__name__ == "RelativeBinningGravitationalWaveTransient":
+        if "RelativeBinning" in likelihood.__class__.__name__:
             logger.info("Relative Binning Likelihood; Calculating SNRs from Summary Data")
         if isinstance(sample, dict):
-            if likelihood.__class__.__name__ == "RelativeBinningGravitationalWaveTransient":
+            if "RelativeBinning" in likelihood.__class__.__name__:
                 waveform_ratio = likelihood.compute_waveform_ratio(sample)
             else:
                 signal_polarizations = likelihood.waveform_generator.frequency_domain_strain(sample)
             likelihood.parameters.update(sample)
 
             for ifo in likelihood.interferometers:
-                if likelihood.__class__.__name__ == "RelativeBinningGravitationalWaveTransient":
+                if "RelativeBinning" in likelihood.__class__.__name__:
                     per_detector_snr = likelihood.calculate_snrs_relative_binning(waveform_ratio[ifo.name], ifo)
                 else:
                     per_detector_snr = likelihood.calculate_snrs(
@@ -1164,14 +1164,14 @@ def compute_snrs(sample, likelihood):
             optimal_snrs = {ifo.name: [] for ifo in likelihood.interferometers}
 
             for ii in tqdm(range(len(sample)), file=sys.stdout):
-                if likelihood.__class__.__name__ == "RelativeBinningGravitationalWaveTransient":
+                if "RelativeBinning" in likelihood.__class__.__name__:
                     waveform_ratio = likelihood.compute_waveform_ratio(dict(sample.iloc[ii]))
                 else:
                     signal_polarizations =\
                         likelihood.waveform_generator.frequency_domain_strain(dict(sample.iloc[ii]))
                 likelihood.parameters.update(sample.iloc[ii])
                 for ifo in likelihood.interferometers:
-                    if likelihood.__class__.__name__ == "RelativeBinningGravitationalWaveTransient":
+                    if "RelativeBinning" in likelihood.__class__.__name__:
                         per_detector_snr = likelihood.calculate_snrs_relative_binning(waveform_ratio[ifo.name], ifo)
                     else:
                         per_detector_snr = likelihood.calculate_snrs(

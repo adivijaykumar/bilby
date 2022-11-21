@@ -2641,6 +2641,7 @@ class RelativeBinningHMGravitationalWaveTransient(GravitationalWaveTransient):
             for l_mode, m_mode, in self.mode_array:
                 summary_data[interferometer.name][l_mode, m_mode] = dict()
 
+            temp_flag = 0
             for l_mode, m_mode in self.mode_array:
                 masked_h0 = self.per_detector_per_mode_fiducial_waveforms[interferometer.name][l_mode, m_mode][mask]
                 a0, b0, a1, b1 = np.zeros((4, self.number_of_bins), dtype=np.complex)
@@ -2668,7 +2669,7 @@ class RelativeBinningHMGravitationalWaveTransient(GravitationalWaveTransient):
 
                 summary_data[interferometer.name][l_mode, m_mode] = dict(a0=a0, a1=a1)
 
-                mode_array_temp = self.mode_array.copy()
+                mode_array_temp = self.mode_array[temp_flag:]
                 for ell, emm in mode_array_temp:
                     masked_h02 = self.per_detector_per_mode_fiducial_waveforms[interferometer.name][ell, emm][mask]
 
@@ -2697,8 +2698,8 @@ class RelativeBinningHMGravitationalWaveTransient(GravitationalWaveTransient):
                     if not (l_mode == ell and m_mode == emm):
                         summary_data[interferometer.name][ell, emm][l_mode, m_mode] = dict(
                             b0=np.conjugate(b0), b1=np.conjugate(b1))
-
-                mode_array_temp.remove([l_mode, m_mode])
+                
+                temp_flag = temp_flag+1
 
         self.summary_data = summary_data
 

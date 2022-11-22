@@ -20,10 +20,10 @@ sampling_frequency = 1024.0
 minimum_frequency = 20
 
 # Specify the output directory and the name of the simulation.
-outdir = "outdir_22"
-mode_array = [[2, 2]]
-os.system(f"rm -rf {outdir}")
 label = "relative"
+outdir = f"outdir_{label}"
+mode_array = [[2, 2], [3, 3], [4, 4], [3, 2]]
+os.system(f"rm -rf {outdir}")
 bilby.core.utils.setup_logger(outdir=outdir, label=label)
 
 # Set up a random seed for result reproducibility.  This is optional!
@@ -34,16 +34,16 @@ np.random.seed(88170235)
 # parameters, including masses of the two black holes (mass_1, mass_2),
 # spins of both black holes (a, tilt, phi), etc.
 injection_parameters = dict(
-    mass_1=36.0,
-    mass_2=29.0,
-    a_1=0.4,
-    a_2=0.3,
+    chirp_mass=28.0,
+    mass_ratio=0.15,
+    a_1=0.001,
+    a_2=0.001,
     tilt_1=0.5,
     tilt_2=1.0,
     phi_12=1.7,
     phi_jl=0.3,
-    luminosity_distance=2000.0,
-    theta_jn=0.4,
+    luminosity_distance=1000.0,
+    theta_jn=1.4,
     psi=2.659,
     phase=1.3,
     geocent_time=1126259642.413,
@@ -82,6 +82,9 @@ ifos.inject_signal(
     waveform_generator=waveform_generator, parameters=injection_parameters
 )
 
+for ifo in ifos:
+    ifo.maximum_frequency = 500
+
 # Set up a PriorDict, which inherits from dict.
 # By default we will sample all terms in the signal models.  However, this will
 # take a long time for the calculation, so for this example we will set almost
@@ -117,7 +120,7 @@ likelihood = bilby.gw.likelihood.RelativeBinningHMGravitationalWaveTransient(
     interferometers=ifos,
     waveform_generator=waveform_generator,
     priors=priors,
-    distance_marginalization=True,
+    distance_marginalization=False,
     fiducial_parameters=injection_parameters,
     mode_array=mode_array,
 )

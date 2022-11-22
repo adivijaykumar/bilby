@@ -11,7 +11,6 @@ between luminosity distances of 100Mpc and 5Gpc, the cosmology is Planck15.
 import bilby
 import os
 import numpy as np
-from tqdm.auto import trange
 
 # Set the duration and sampling frequency of the data segment that we're
 # going to inject the signal into
@@ -20,7 +19,7 @@ sampling_frequency = 1024.0
 minimum_frequency = 20
 
 # Specify the output directory and the name of the simulation.
-label = "relative"
+label = "normal"
 outdir = f"outdir_{label}"
 mode_array = [[2, 2], [3, 3], [4, 4], [3, 2], [2, 1]]
 os.system(f"rm -rf {outdir}")
@@ -49,7 +48,6 @@ injection_parameters = dict(
     geocent_time=1126259642.413,
     ra=1.375,
     dec=-1.2108,
-    fiducial=1,
 )
 
 # Fixed arguments passed into the source model
@@ -63,8 +61,7 @@ waveform_arguments = dict(
 waveform_generator = bilby.gw.WaveformGenerator(
     duration=duration,
     sampling_frequency=sampling_frequency,
-    # frequency_domain_source_model=bilby.gw.source.lal_binary_black_hole,
-    frequency_domain_source_model=bilby.gw.source.lal_binary_black_hole_relativebinning,
+    frequency_domain_source_model=bilby.gw.source.lal_binary_black_hole,
     parameter_conversion=bilby.gw.conversion.convert_to_lal_binary_black_hole_parameters,
     waveform_arguments=waveform_arguments,
 )
@@ -110,19 +107,16 @@ for key in [
     "phase",
 ]:
     priors[key] = injection_parameters[key]
-priors["fiducial"] = 0
 
 # Perform a check that the prior does not extend to a parameter space longer than the data
 
 # Initialise the likelihood by passing in the interferometer data (ifos) and
 # the waveform generator
-likelihood = bilby.gw.likelihood.RelativeBinningHMGravitationalWaveTransient(
+likelihood = bilby.gw.likelihood.GravitationalWaveTransient(
     interferometers=ifos,
     waveform_generator=waveform_generator,
     priors=priors,
     distance_marginalization=False,
-    fiducial_parameters=injection_parameters,
-    mode_array=mode_array,
 )
 
 # Run sampler.  In this case we're going to use the `dynesty` sampler
@@ -136,34 +130,6 @@ result = bilby.run_sampler(
     label=label,
     conversion_function=bilby.gw.conversion.generate_all_bbh_parameters,
 )
-
-waveform_arguments.update(mode_array=mode_array)
-alt_waveform_generator = bilby.gw.WaveformGenerator(
-    duration=duration,
-    sampling_frequency=sampling_frequency,
-    frequency_domain_source_model=bilby.gw.source.lal_binary_black_hole,
-    # frequency_domain_source_model=lal_binary_black_hole_relative_binning,
-    parameter_conversion=bilby.gw.conversion.convert_to_lal_binary_black_hole_parameters,
-    waveform_arguments=waveform_arguments,
-)
-alt_likelihood = bilby.gw.likelihood.GravitationalWaveTransient(
-    interferometers=ifos,
-    waveform_generator=alt_waveform_generator,
-)
-likelihood.distance_marginalization = False
-weights = list()
-for ii in trange(len(result.posterior)):
-    parameters = dict(result.posterior.iloc[ii])
-    likelihood.parameters.update(parameters)
-    alt_likelihood.parameters.update(parameters)
-    weights.append(
-        alt_likelihood.log_likelihood_ratio() - likelihood.log_likelihood_ratio()
-    )
-weights = np.exp(weights)
-print(
-    f"Reweighting efficiency is {np.mean(weights)**2 / np.mean(weights**2) * 100:.2f}%"
-)
-print(f"Binned vs unbinned log Bayes factor {np.log(np.mean(weights)):.2f}")
 
 # Make a corner plot.
 result.plot_corner()

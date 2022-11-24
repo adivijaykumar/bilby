@@ -2641,10 +2641,8 @@ class RelativeBinningHMGravitationalWaveTransient(GravitationalWaveTransient):
             for l_mode, m_mode, in self.mode_array:
                 summary_data[interferometer.name][l_mode, m_mode] = dict()
 
-            temp_flag = 0
-            for l_mode, m_mode in self.mode_array:
                 masked_h0 = self.per_detector_per_mode_fiducial_waveforms[interferometer.name][l_mode, m_mode][mask]
-                a0, b0, a1, b1 = np.zeros((4, self.number_of_bins), dtype=np.complex)
+                a0, a1 = np.zeros((2, self.number_of_bins), dtype=np.complex)
 
                 for i in range(self.number_of_bins):
 
@@ -2669,7 +2667,11 @@ class RelativeBinningHMGravitationalWaveTransient(GravitationalWaveTransient):
 
                 summary_data[interferometer.name][l_mode, m_mode] = dict(a0=a0, a1=a1)
 
+            temp_flag = 0
+            for l_mode, m_mode in self.mode_array:
                 mode_array_temp = self.mode_array[temp_flag:]
+                masked_h0 = self.per_detector_per_mode_fiducial_waveforms[interferometer.name][l_mode, m_mode][mask]
+                b0, b1 = np.zeros((2, self.number_of_bins), dtype=np.complex)
                 for ell, emm in mode_array_temp:
                     masked_h02 = self.per_detector_per_mode_fiducial_waveforms[interferometer.name][ell, emm][mask]
 
@@ -2771,9 +2773,14 @@ class RelativeBinningHMGravitationalWaveTransient(GravitationalWaveTransient):
         else:
             d_inner_h_squared_tc_array = None
 
+       # return self._CalculatedSNRs(
+       #     d_inner_h=d_inner_h, optimal_snr_squared=optimal_snr_squared,
+       #     complex_matched_filter_snr=complex_matched_filter_snr,
+       #     d_inner_h_array=None, optimal_snr_squared_array=None,
+       #     d_inner_h_squared_tc_array=d_inner_h_squared_tc_array)
         return self._CalculatedSNRs(
-            d_inner_h=d_inner_h, optimal_snr_squared=optimal_snr_squared,
-            complex_matched_filter_snr=complex_matched_filter_snr,
+            d_inner_h=d_inner_h / len(self.mode_array), optimal_snr_squared=optimal_snr_squared / len(self.mode_array) ** 2,
+            complex_matched_filter_snr=complex_matched_filter_snr / len(self.mode_array),
             d_inner_h_array=None, optimal_snr_squared_array=None,
             d_inner_h_squared_tc_array=d_inner_h_squared_tc_array)
 

@@ -35,13 +35,13 @@ np.random.seed(88170235)
 # spins of both black holes (a, tilt, phi), etc.
 injection_parameters = dict(
     chirp_mass=28.0,
-    mass_ratio=0.15,
-    a_1=0.001,
-    a_2=0.001,
-    tilt_1=0.5,
-    tilt_2=1.0,
-    phi_12=1.7,
-    phi_jl=0.3,
+    mass_ratio=0.2,
+    a_1=0.0,
+    a_2=0.0,
+    tilt_1=0,
+    tilt_2=0,
+    phi_12=0,
+    phi_jl=0,
     luminosity_distance=1000.0,
     theta_jn=1.4,
     psi=2.659,
@@ -73,7 +73,7 @@ waveform_generator = bilby.gw.WaveformGenerator(
 # (LIGO-Hanford (H1), LIGO-Livingston (L1). These default to their design
 # sensitivity
 ifos = bilby.gw.detector.InterferometerList(["H1", "L1"])
-ifos.set_strain_data_from_power_spectral_densities(
+ifos.set_strain_data_from_zero_noise(
     sampling_frequency=sampling_frequency,
     duration=duration,
     start_time=injection_parameters["geocent_time"] - 2,
@@ -103,11 +103,7 @@ for key in [
     "tilt_2",
     "phi_12",
     "phi_jl",
-    "psi",
-    "ra",
-    "dec",
     "geocent_time",
-    "phase",
 ]:
     priors[key] = injection_parameters[key]
 priors["fiducial"] = 0
@@ -124,7 +120,8 @@ likelihood = bilby.gw.likelihood.RelativeBinningHMGravitationalWaveTransient(
     fiducial_parameters=injection_parameters,
     mode_array=mode_array,
 )
-
+# print(likelihood.summary_data)
+# print(likelihood.compute_waveform_ratio(injection_parameters))
 # Run sampler.  In this case we're going to use the `dynesty` sampler
 result = bilby.run_sampler(
     likelihood=likelihood,
@@ -136,6 +133,8 @@ result = bilby.run_sampler(
     label=label,
     conversion_function=bilby.gw.conversion.generate_all_bbh_parameters,
 )
+
+result.plot_corner()
 
 waveform_arguments.update(mode_array=mode_array)
 alt_waveform_generator = bilby.gw.WaveformGenerator(
@@ -166,4 +165,3 @@ print(
 print(f"Binned vs unbinned log Bayes factor {np.log(np.mean(weights)):.2f}")
 
 # Make a corner plot.
-result.plot_corner()

@@ -2738,17 +2738,14 @@ class RelativeBinningHMGravitationalWaveTransient(GravitationalWaveTransient):
             r0, r1 = waveform_ratio_per_detector[l_mode, m_mode]
 
             # Using eqn 22a from Leslie et al
-            d_inner_h_lm = np.sum(a0 * np.conjugate(r0) + a1 * np.conjugate(r1))
-            h_inner_h_lm = 0
+            d_inner_h += np.sum(a0 * np.conjugate(r0) + a1 * np.conjugate(r1))
             for ell, emm in self.mode_array:
                 b0 = summary_data_per_interferometer[l_mode, m_mode][ell, emm]["b0"]
                 b1 = summary_data_per_interferometer[l_mode, m_mode][ell, emm]["b1"]
                 r0_ellemm, r1_ellemm = waveform_ratio_per_detector[ell, emm]
                 # Using 22b from Leslie et al
-                h_inner_h_lm += np.sum(b0 * r0 * np.conjugate(r0_ellemm) + b1 * (r0 * np.conjugate(r1_ellemm)
+                h_inner_h += np.sum(b0 * r0 * np.conjugate(r0_ellemm) + b1 * (r0 * np.conjugate(r1_ellemm)
                                                                                  + np.conjugate(r0_ellemm) * r1))
-            d_inner_h += d_inner_h_lm
-            h_inner_h += h_inner_h_lm
         optimal_snr_squared = h_inner_h
         complex_matched_filter_snr = d_inner_h / (optimal_snr_squared ** 0.5)
 

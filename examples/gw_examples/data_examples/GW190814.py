@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Tutorial to demonstrate running parameter estimation on GW190425.
+Tutorial to demonstrate running parameter estimation on GW190814.
 
 This example estimates all 17 parameters of the binary neutron star system using
 commonly used prior distributions. We shall use the relative binning likelihood.
@@ -14,7 +14,7 @@ from gwpy.timeseries import TimeSeries
 
 logger = bilby.core.utils.logger
 outdir = "outdir"
-label = "GW190425"
+label = "GW190814"
 
 # Note you can get trigger times using the gwosc package, e.g.
 trigger_time = 1249852257.0
@@ -29,26 +29,27 @@ start_time = end_time - duration
 
 # The fiducial parameters are taken to me the max likelihood sample from the
 # posterior sample release of LIGO-Virgo
-# https://www.gw-openscience.org/eventapi/html/O3_Discovery_Papers/GW190425/
+# https://www.gw-openscience.org/eventapi/html/O3_Discovery_Papers/GW190814/
 
 fiducial_parameters = dict(
     chirp_mass=6.41,
     mass_ratio=0.11,
-    a_1=0.00,
-    a_2=0.00,
-    tilt_1=0.0,
-    tilt_2=0.0,
-    phi_12=0.0,
-    phi_jl=0.0,
-    luminosity_distance=241.0,
-    theta_jn=1.4,
-    psi=0,
-    phase=0,
-    geocent_time=1249852257.012944,
+    a_1=0.01,
+    a_2=0.5,
+    tilt_1=1.226,
+    tilt_2=2.035,
+    phi_12=3.877,
+    phi_jl=2.477,
+    luminosity_distance=231.746,
+    theta_jn=0.901,
+    psi=0.428,
+    phase=3.015,
+    geocent_time=1249852256.991,
     ra=1.375,
     dec=-1.2108,
     fiducial=1,
 )
+
 psd_duration = 1024
 psd_start_time = start_time - psd_duration
 psd_end_time = start_time
@@ -127,10 +128,9 @@ result = bilby.run_sampler(
     sampler="pymultinest",
     outdir=outdir,
     label=label,
-    npoints=100,
+    npoints=800,
     check_point_delta_t=600,
     check_point_plot=True,
-    npool=1,
     conversion_function=bilby.gw.conversion.generate_all_bbh_parameters,
 )
 result.plot_corner()

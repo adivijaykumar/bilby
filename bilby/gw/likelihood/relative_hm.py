@@ -1,9 +1,12 @@
 import numpy as np
 from scipy.optimize import differential_evolution
-
+import copy
+from ..utils import ln_i0
+from ...core.utils import create_time_series
 from .base import GravitationalWaveTransient
 from ...core.utils import logger
 from ...core.prior.base import Constraint
+from ...core.prior.interpolated import Interped
 from ...core.prior import DeltaFunction
 from ..utils import noise_weighted_inner_product
 
@@ -390,12 +393,10 @@ class RelativeBinningHMGravitationalWaveTransient(GravitationalWaveTransient):
             ) in self.mode_array:
                 summary_data[interferometer.name][l_mode, m_mode] = dict()
 
-            # temp_flag = 0
-            for l_mode, m_mode in self.mode_array:
                 masked_h0 = self.per_detector_per_mode_fiducial_waveforms[
                     interferometer.name
                 ][l_mode, m_mode][mask]
-                a0, b0, a1, b1 = np.zeros((4, self.number_of_bins), dtype=np.complex)
+                a0, a1 = np.zeros((2, self.number_of_bins), dtype=np.complex)
 
                 for i in range(self.number_of_bins):
 
@@ -430,7 +431,13 @@ class RelativeBinningHMGravitationalWaveTransient(GravitationalWaveTransient):
 
                 summary_data[interferometer.name][l_mode, m_mode] = dict(a0=a0, a1=a1)
 
-                mode_array_temp = self.mode_array.copy()
+            temp_flag = 0
+            for l_mode, m_mode in self.mode_array:
+                mode_array_temp = self.mode_array[temp_flag:]
+                masked_h0 = self.per_detector_per_mode_fiducial_waveforms[
+                    interferometer.name
+                ][l_mode, m_mode][mask]
+                b0, b1 = np.zeros((2, self.number_of_bins), dtype=np.complex)
                 for ell, emm in mode_array_temp:
                     masked_h02 = self.per_detector_per_mode_fiducial_waveforms[
                         interferometer.name
@@ -476,7 +483,7 @@ class RelativeBinningHMGravitationalWaveTransient(GravitationalWaveTransient):
                             l_mode, m_mode
                         ] = dict(b0=np.conjugate(b0), b1=np.conjugate(b1))
 
-                # temp_flag = temp_flag+1
+                temp_flag = temp_flag + 1
 
         self.summary_data = summary_data
 
@@ -810,7 +817,7 @@ class RelativeBinningHMGravitationalWaveTransient(GravitationalWaveTransient):
 
         Notes
         -----
-        This is only valid when assumes that mu(phi) \propto exp(-2i phi).
+        This is only valid when assumes that mu(phi) propto exp(-2i phi).
         """
         self.parameters.update(self.get_sky_frame_parameters())
         if waveform_ratio is None:

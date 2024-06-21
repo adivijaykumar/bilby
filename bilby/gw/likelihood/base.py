@@ -468,9 +468,12 @@ class GravitationalWaveTransient(Likelihood):
 
         return log_l
 
-    def compute_per_detector_log_likelihood(self):
-        waveform_polarizations = \
-            self.waveform_generator.frequency_domain_strain(self.parameters)
+    def compute_per_detector_log_likelihood(self, relbin_hm=False):
+        if relbin_hm:
+            waveform_ratios = self.compute_waveform_ratio(self.parameters)
+        else:
+            waveform_polarizations = \
+                self.waveform_generator.frequency_domain_strain(self.parameters)
 
         if self.time_marginalization and self.jitter_time:
             self.parameters['geocent_time'] += self.parameters['time_jitter']
@@ -478,9 +481,14 @@ class GravitationalWaveTransient(Likelihood):
         self.parameters.update(self.get_sky_frame_parameters())
 
         for interferometer in self.interferometers:
-            per_detector_snr = self.calculate_snrs(
-                waveform_polarizations=waveform_polarizations,
-                interferometer=interferometer)
+            if relbin_hm:
+                per_detector_snr = self.calculate_snrs_relative_binning(
+                    waveform_ratio_per_detector=waveform_ratios[interferometer.name],
+                    interferometer=interferometer)
+            else:
+                per_detector_snr = self.calculate_snrs(
+                    waveform_polarizations=waveform_polarizations,
+                    interferometer=interferometer)
 
             self.parameters['{}_log_likelihood'.format(interferometer.name)] = \
                 self.compute_log_likelihood_from_snrs(per_detector_snr)

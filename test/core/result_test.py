@@ -442,6 +442,93 @@ class TestResult(unittest.TestCase):
         )
         self.result.plot_with_data(model, x, y, ndraws=10, xlabel="a", ylabel="y")
 
+    def _uniform_xy_prior(self):
+        return bilby.prior.PriorDict(
+            dict(
+                x=bilby.prior.Uniform(0, 1, "x", latex_label="$x$", unit="s"),
+                y=bilby.prior.Uniform(0, 1, "y", latex_label="$y$", unit="m"),
+            )
+        )
+
+    def test_get_weights_by_new_prior_same_prior_gives_unit_weights(self):
+        prior = self._uniform_xy_prior()
+        posterior = pd.DataFrame(prior.sample(20))
+        result = bilby.core.result.Result(
+            search_parameter_keys=["x", "y"], priors=prior, posterior=posterior,
+        )
+        weights = result.get_weights_by_new_prior(prior, prior)
+        self.assertEqual(len(weights), len(posterior))
+        self.assertTrue(np.allclose(weights, 1))
+
+    def test_get_weights_by_new_prior_different_prior(self):
+        old_prior = self._uniform_xy_prior()
+        new_prior = self._uniform_xy_prior()
+        posterior = pd.DataFrame(old_prior.sample(20))
+        result = bilby.core.result.Result(
+            search_parameter_keys=["x", "y"], priors=old_prior, posterior=posterior,
+        )
+        weights = result.get_weights_by_new_prior(old_prior, new_prior)
+        self.assertEqual(len(weights), len(posterior))
+
+    def test_get_weights_by_new_prior_with_prior_names(self):
+        old_prior = self._uniform_xy_prior()
+        new_prior = self._uniform_xy_prior()
+        posterior = pd.DataFrame(old_prior.sample(20))
+        result = bilby.core.result.Result(
+            search_parameter_keys=["x", "y"], priors=old_prior, posterior=posterior,
+        )
+        weights = result.get_weights_by_new_prior(
+            old_prior, new_prior, prior_names=["x"]
+        )
+        self.assertEqual(len(weights), len(posterior))
+
+    def test_plot_single_density(self):
+        fig = self.result.plot_single_density("x", save=False)
+        self.assertIsNotNone(fig)
+
+        filename = "{}/x_pdf".format(self.result.outdir)
+        self.result.plot_single_density(
+            "x", save=True, file_base_name="{}/".format(self.result.outdir)
+        )
+        self.assertTrue(os.path.isfile(filename + ".png"))
+
+        # cumulative distribution branch
+        self.result.plot_single_density("x", cumulative=True, save=False)
+
+        # prior overlay branch
+        self.result.plot_single_density(
+            "x", prior=self.result.priors["x"], save=False
+        )
+
+    def test_plot_single_density_non_finite_range_returns_none(self):
+        self.result.posterior["z"] = np.inf
+        fig = self.result.plot_single_density("z", save=False)
+        self.assertIsNone(fig)
+
+    def test_plot_marginals(self):
+        self.result.plot_marginals()
+        for key in ["x", "y"]:
+            self.assertTrue(
+                os.path.isfile(
+                    "{}/{}_1d/{}_pdf.png".format(
+                        self.result.outdir, self.result.label, key
+                    )
+                )
+            )
+
+    def test_plot_marginals_with_parameters_list(self):
+        self.result.plot_marginals(parameters=["x"])
+
+    def test_plot_marginals_with_parameters_dict(self):
+        self.result.plot_marginals(parameters=dict(x=0.5))
+
+    def test_plot_marginals_with_priors(self):
+        self.result.plot_marginals(priors=True)
+
+    def test_plot_marginals_with_invalid_priors_raises(self):
+        with self.assertRaises(ValueError):
+            self.result.plot_marginals(priors="invalid")
+
     def test_plot_corner(self):
         self.result.injection_parameters = dict(x=0.8, y=1.1)
         self.result.plot_corner()

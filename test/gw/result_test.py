@@ -26,6 +26,8 @@ class BaseCBCResultTest(unittest.TestCase):
                 distance_marginalization=False,
                 time_marginalization=True,
                 frequency_domain_source_model=bilby.gw.source.lal_binary_black_hole,
+                time_domain_source_model=None,
+                waveform_generator_meta_data=dict(),
                 waveform_arguments=dict(
                     reference_frequency=20.0, waveform_approximant="IMRPhenomPv2"
                 ),
@@ -33,7 +35,7 @@ class BaseCBCResultTest(unittest.TestCase):
                     H1=dict(optimal_SNR=1, parameters=injection_parameters),
                     L1=dict(optimal_SNR=1, parameters=injection_parameters),
                 ),
-                sampling_frequency=4096,
+                sampling_frequency=256,
                 duration=4,
                 start_time=0,
                 waveform_generator_class=bilby.gw.waveform_generator.WaveformGenerator,
@@ -65,6 +67,16 @@ class TestCBCResult(BaseCBCResultTest):
     @pytest.fixture(autouse=True)
     def set_caplog(self, caplog):
         self._caplog = caplog
+
+    def test_init_without_meta_data_fills_in_defaults(self):
+        result = bilby.gw.result.CBCResult(
+            label="no_meta_data",
+            outdir=self.outdir,
+            sampler="emcee",
+            search_parameter_keys=[],
+        )
+        self.assertIn("global_meta_data", result.meta_data)
+        self.assertIn("cosmology", result.meta_data["global_meta_data"])
 
     def test_phase_marginalization(self):
         self.assertEqual(
@@ -226,6 +238,128 @@ class CBCResultsGlobalMetaDataTest(BaseCBCResultTest):
             self.result.cosmology,
             self.meta_data["global_meta_data"]["cosmology"],
         )
+
+
+class TestCBCResultPlotCalibrationPosterior(BaseCBCResultTest):
+
+    def test_plot_calibration_posterior_no_calibration_parameters(self):
+        # self.result's posterior has no recalib_* columns: should log and
+        # return without raising or writing a file.
+        self.result.plot_calibration_posterior()
+        self.assertFalse(
+            os.path.isfile(
+                os.path.join(self.result.outdir, self.result.label + "_calibration.png")
+            )
+        )
+
+    def test_plot_calibration_posterior_invalid_format_raises(self):
+        with self.assertRaises(ValueError):
+            self.result.plot_calibration_posterior(format="invalid")
+
+    def test_plot_calibration_posterior_with_calibration_parameters(self):
+        priors = bilby.gw.prior.BBHPriorDict()
+        priors["geocent_time"] = 2
+        cal_priors = bilby.gw.prior.CalibrationPriorDict.constant_uncertainty_spline(
+            amplitude_sigma=0.1,
+            phase_sigma=0.1,
+            minimum_frequency=20,
+            maximum_frequency=1024,
+            n_nodes=5,
+            label="H1",
+        )
+        priors.update(cal_priors)
+        injection_parameters = priors.sample()
+        result = bilby.gw.result.CBCResult(
+            label="calibration",
+            outdir=self.outdir,
+            sampler="emcee",
+            search_parameter_keys=list(priors.keys()),
+            fixed_parameter_keys=list(),
+            priors=priors,
+            sampler_kwargs=dict(),
+            injection_parameters=injection_parameters,
+            meta_data=self.meta_data,
+            posterior=pd.DataFrame(priors.sample(20)),
+        )
+        result.plot_calibration_posterior()
+        self.assertTrue(
+            os.path.isfile(
+                os.path.join(result.outdir, result.label + "_calibration.png")
+            )
+        )
+
+
+class TestCBCResultPlotWaveformPosterior(BaseCBCResultTest):
+
+    def setUp(self):
+        super().setUp()
+        # Downsample to keep the waveform-generation loop fast.
+        self.result.posterior = self.result.posterior.iloc[:3]
+
+    def test_plot_interferometer_waveform_posterior_by_name(self):
+        fig = self.result.plot_interferometer_waveform_posterior(
+            interferometer="H1", n_samples=2, save=False
+        )
+        self.assertIsNotNone(fig)
+
+    def test_plot_interferometer_waveform_posterior_saves_file(self):
+        self.result.plot_interferometer_waveform_posterior(
+            interferometer="H1", n_samples=2, save=True
+        )
+        self.assertTrue(
+            os.path.isfile(
+                os.path.join(
+                    self.result.outdir, self.result.label + "_H1_waveform.png"
+                )
+            )
+        )
+
+    def test_plot_interferometer_waveform_posterior_invalid_type_raises(self):
+        with self.assertRaises(TypeError):
+            self.result.plot_interferometer_waveform_posterior(
+                interferometer=1234, n_samples=2, save=False
+            )
+
+    def test_plot_interferometer_waveform_posterior_with_interferometer_object(self):
+        ifo = bilby.gw.detector.get_empty_interferometer("H1")
+        ifo.set_strain_data_from_zero_noise(
+            sampling_frequency=self.result.sampling_frequency,
+            duration=self.result.duration,
+            start_time=self.result.start_time,
+        )
+        fig = self.result.plot_interferometer_waveform_posterior(
+            interferometer=ifo, n_samples=2, save=False
+        )
+        self.assertIsNotNone(fig)
+
+    def test_plot_interferometer_waveform_posterior_html_falls_back_to_png(self):
+        # plotly is not installed in the test environment, so requesting the
+        # html format should log a warning and fall back to png.
+        self.result.plot_interferometer_waveform_posterior(
+            interferometer="H1", n_samples=2, save=True, format="html"
+        )
+        self.assertTrue(
+            os.path.isfile(
+                os.path.join(
+                    self.result.outdir, self.result.label + "_H1_waveform.png"
+                )
+            )
+        )
+
+    def test_plot_waveform_posterior_invalid_interferometers_raises(self):
+        with self.assertRaises(TypeError):
+            self.result.plot_waveform_posterior(interferometers="H1")
+
+    def test_plot_waveform_posterior_default_interferometers(self):
+        self.result.plot_waveform_posterior(n_samples=2)
+        for name in ["H1", "L1"]:
+            self.assertTrue(
+                os.path.isfile(
+                    os.path.join(
+                        self.result.outdir, self.result.label + f"_{name}_waveform.png"
+                    )
+                )
+            )
 
 
 @parameterized_class(

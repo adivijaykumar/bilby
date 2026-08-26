@@ -277,6 +277,65 @@ class TestGWUtils(unittest.TestCase):
                 1.5,
             )
 
+    def test_lalsim_SimInspiralFD(self):
+        a = gwutils.lalsim_SimInspiralFD(
+            35.2,
+            20.4,
+            0.1,
+            0.2,
+            0.2,
+            0.2,
+            0.2,
+            0.1,
+            1000,
+            2,
+            2.3,
+            45.0,
+            0.1,
+            10,
+            0.01,
+            10,
+            1000,
+            20,
+            None,
+            lalsim.IMRPhenomPv2,
+        )
+        self.assertEqual(len(a), 2)
+        self.assertEqual(type(a[0]), lal.COMPLEX16FrequencySeries)
+        self.assertEqual(type(a[1]), lal.COMPLEX16FrequencySeries)
+
+    def test_lalsim_SimInspiralChooseFDWaveformSequence(self):
+        frequency_array = np.linspace(20, 100, 50)
+        a = gwutils.lalsim_SimInspiralChooseFDWaveformSequence(
+            2.3, 35.2, 20.4, 0.1, 0.2, 0.2, 0.2, 0.2, 0.1, 20, 1000, 0.1,
+            None, lalsim.IMRPhenomPv2, frequency_array,
+        )
+        self.assertEqual(len(a), 2)
+        self.assertEqual(type(a[0]), lal.COMPLEX16FrequencySeries)
+        self.assertEqual(type(a[1]), lal.COMPLEX16FrequencySeries)
+
+        with self.assertRaises(ValueError):
+            gwutils.lalsim_SimInspiralChooseFDWaveformSequence(
+                2.3, 35.2, 20.4, 0.1, 0.2, 0.2, 0.2, 0.2, 0.1, 20, 1000, 0.1,
+                None, 1.5, frequency_array,
+            )
+
+    def test_lalsim_SimInspiralWaveformParamsInsertTidalLambda(self):
+        lal_dict = lal.CreateDict()
+        gwutils.lalsim_SimInspiralWaveformParamsInsertTidalLambda1(lal_dict, 400)
+        gwutils.lalsim_SimInspiralWaveformParamsInsertTidalLambda2(lal_dict, 450)
+        self.assertEqual(
+            lalsim.SimInspiralWaveformParamsLookupTidalLambda1(lal_dict), 400
+        )
+        self.assertEqual(
+            lalsim.SimInspiralWaveformParamsLookupTidalLambda2(lal_dict), 450
+        )
+
+        with self.assertRaises(ValueError):
+            gwutils.lalsim_SimInspiralWaveformParamsInsertTidalLambda1(lal_dict, "x")
+        with self.assertRaises(ValueError):
+            gwutils.lalsim_SimInspiralWaveformParamsInsertTidalLambda2(lal_dict, "x")
+
     def test_safe_cast_mode_to_int(self):
         # Valid cases
         self.assertEqual(gwutils.safe_cast_mode_to_int("2"), 2)
@@ -296,6 +355,71 @@ class TestGWUtils(unittest.TestCase):
             gwutils.safe_cast_mode_to_int(2.0j)
         with self.assertRaises(TypeError):
             gwutils.safe_cast_mode_to_int(None)
+
+
+class TestNeutronStarEOSWrappers(unittest.TestCase):
+    """Tests for the lalsim_SimNeutronStar* wrappers in bilby.gw.utils.
+
+    Uses the same MPA1 spectral-decomposition gammas as test/gw/eos/eos_test.py,
+    which are known to produce a physically valid EOS/family.
+    """
+
+    def setUp(self):
+        self.gammas = [1.0215, 0.1653, -0.0235, -0.0004]
+        self.eos = gwutils.lalsim_SimNeutronStarEOS4ParameterSpectralDecomposition(
+            *self.gammas
+        )
+        self.family = gwutils.lalsim_CreateSimNeutronStarFamily(self.eos)
+
+    def test_gamma_check(self):
+        result = gwutils.lalsim_SimNeutronStarEOS4ParamSDGammaCheck(*self.gammas)
+        self.assertIsInstance(result, int)
+
+    def test_viable_family_check(self):
+        result = gwutils.lalsim_SimNeutronStarEOS4ParamSDViableFamilyCheck(*self.gammas)
+        self.assertIsInstance(result, int)
+
+    def test_gamma_check_raises_for_non_numeric(self):
+        with self.assertRaises(ValueError):
+            gwutils.lalsim_SimNeutronStarEOS4ParamSDGammaCheck("a", 1, 1, 1)
+        with self.assertRaises(TypeError):
+            gwutils.lalsim_SimNeutronStarEOS4ParamSDGammaCheck(None, 1, 1, 1)
+
+    def test_mass_and_radius_chain(self):
+        mass_max = gwutils.lalsim_SimNeutronStarMaximumMass(self.family)
+        mass_min = gwutils.lalsim_SimNeutronStarFamMinimumMass(self.family)
+        self.assertGreater(mass_max, mass_min)
+
+        mid_mass = (mass_max + mass_min) / 2
+        radius = gwutils.lalsim_SimNeutronStarRadius(mid_mass, self.family)
+        love_number = gwutils.lalsim_SimNeutronStarLoveNumberK2(mid_mass, self.family)
+        self.assertGreater(radius, 0)
+        self.assertGreater(love_number, 0)
+
+    def test_radius_raises_for_non_numeric(self):
+        with self.assertRaises(ValueError):
+            gwutils.lalsim_SimNeutronStarRadius("a", self.family)
+        with self.assertRaises(TypeError):
+            gwutils.lalsim_SimNeutronStarRadius(None, self.family)
+
+    def test_love_number_raises_for_non_numeric(self):
+        with self.assertRaises(ValueError):
+            gwutils.lalsim_SimNeutronStarLoveNumberK2("a", self.family)
+        with self.assertRaises(TypeError):
+            gwutils.lalsim_SimNeutronStarLoveNumberK2(None, self.family)
+
+    def test_speed_of_sound_geometerized(self):
+        max_pseudo_enthalpy = gwutils.lalsim_SimNeutronStarEOSMaxPseudoEnthalpy(self.eos)
+        speed_of_sound = gwutils.lalsim_SimNeutronStarEOSSpeedOfSoundGeometerized(
+            max_pseudo_enthalpy, self.eos
+        )
+        self.assertGreater(speed_of_sound, 0)
+
+    def test_speed_of_sound_raises_for_non_numeric(self):
+        with self.assertRaises(ValueError):
+            gwutils.lalsim_SimNeutronStarEOSSpeedOfSoundGeometerized("a", self.eos)
+        with self.assertRaises(TypeError):
+            gwutils.lalsim_SimNeutronStarEOSSpeedOfSoundGeometerized(None, self.eos)
 
 
 @pytest.mark.array_backend

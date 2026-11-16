@@ -298,6 +298,11 @@ class Dynesty(NestedSampler):
             bound = kwargs["bound"]
         kwargs["sample"] = internal_sampler
         kwargs["bound"] = bound
+        if isinstance(internal_sampler, dynesty_utils.BaseEnsembleSampler):
+            # The bilby samplers are configured above. dynesty ignores walks and
+            # slices passed alongside a sampler instance (and warns from v3.2).
+            kwargs["walks"] = None
+            kwargs["slices"] = None
         return kwargs
 
     def _translate_kwargs(self, kwargs):

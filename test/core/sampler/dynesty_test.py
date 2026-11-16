@@ -207,6 +207,17 @@ class TestDynesty(unittest.TestCase):
         self.assertEqual(self.dysampler.internal_sampler_next.naccept, 5)
         self.assertEqual(self.dysampler.internal_sampler_next.maxmcmc, 200)
 
+    @parameterized.parameterized.expand(["act-walk", "acceptance-walk", "rwalk"])
+    def test_walks_not_passed_to_dynesty_with_bilby_sampler(self, sample):
+        self.init_sampler(sample=sample, walks=50)
+        kwargs = self.sampler.sampler_init_kwargs
+        self.assertIsNone(kwargs["walks"])
+        self.assertIsNone(kwargs["slices"])
+        if sample == "acceptance-walk":
+            self.assertEqual(
+                self.dysampler.internal_sampler_next.sampler_kwargs["walks"], 50
+            )
+
     def test_run_test_runs(self):
         self.sampler._run_test()
 
